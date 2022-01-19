@@ -4,7 +4,6 @@
 #include "BluetoothSerial.h"
 #include "../lib/ArduinoJson-v6.19.1.h"
 
-
 #define TOTAL_LED 17
 #define PIN_NUM_NEOPIXEL_OUTPUT 0
 #define PIN_DRIVE_MOTOR_LEFT 4
@@ -18,11 +17,6 @@
 #define LED_WEAPON_L1 9
 #define LED_WEAPON_L2 10
 #define LED_WEAPON_L3 11
-
-const char _driveLeft = 'a';
-const char _driveRight = 'd';
-const char _driveUp = 'w';
-const char _driveDown = 's';
 
 #define HUE_FORWARD 96
 #define HUE_REVERSE 0
@@ -149,7 +143,7 @@ void SetDriveMotorSpeed(float newSpeed, bool isLeftMotor, int motorLeds[])
     {
         newSpeed = 0;
     }
-
+ 
     if(!IsTimedOut())
     {
         int brightness = GetBrightnessForSpeed(newSpeed);
@@ -297,136 +291,8 @@ void Start()
     SetWeaponMotorSpeed(0);
     SetDriveMotorSpeed(0, true, DriveLeftLEDs);
     SetDriveMotorSpeed(0, false, DriveRightLEDs);
-    /*
-    delay(1000);
-    SetDriveMotorSpeed(-1, true, DriveLeftLEDs);
-    SetDriveMotorSpeed(-1, false, DriveRightLEDs);
-    delay(1000);
-    SetDriveMotorSpeed(0, true, DriveLeftLEDs);
-    SetDriveMotorSpeed(0, false, DriveRightLEDs);
-    delay(1000);
-    SetDriveMotorSpeed(1, true, DriveLeftLEDs);
-    SetDriveMotorSpeed(1, false, DriveRightLEDs);
-    delay(1000);
-    SetDriveMotorSpeed(0, true, DriveLeftLEDs);
-    SetDriveMotorSpeed(0, false, DriveRightLEDs);
-    */
     FastLED.show();
-
-
-}
-
-void readRawMotorValueOld()
-{
-    while (SerialBT.available() > 0)
-    {
-        int inChar = SerialBT.read();
-        if (isDigit(inChar))
-        {
-            // convert the incoming byte to a char and add it to the string:
-            inputString += (char) inChar;
-        }
-        // if you get a newline, print the string, then the string's value:
-        if (inChar == '\n')
-        {
-            Serial.print("Value:");
-            int possibleNewValue = inputString.toInt();
-            Serial.println(possibleNewValue);
-            Serial.print("String: ");
-            Serial.println(inputString);
-            // clear the string for new input:
-            inputString = "";
-
-            if (possibleNewValue >= 0 && possibleNewValue <= 99)
-            {
-                //writeToMotorAndLEDs(possibleNewValue);
-            }
-        }
-    }
-}
-
-void readMotorOnOffOld()
-{
-    while (SerialBT.available() > 0)
-    {
-        receivedChar = (char) SerialBT.read();
-
-        SerialBT.print("Received:");// write on BT app
-        SerialBT.println(receivedChar);// write on BT app      
-        Serial.print("Received:");//print on serial monitor
-        Serial.println(receivedChar);//print on serial monitor
-        if (receivedChar == _driveUp)
-        {
-
-            targetLeftMotorSpeed = 1.0;
-            targetRightMotorSpeed = 1.0;
-        }
-
-        if (receivedChar == _driveDown)
-        {
-            targetLeftMotorSpeed = -1.0;
-            targetRightMotorSpeed = -1.0;
-        }
-
-        if (receivedChar == _driveLeft)
-        {
-            targetLeftMotorSpeed = -1.0;
-            targetRightMotorSpeed = 1.0;
-        }
-
-        if (receivedChar == _driveRight)
-        {
-            targetLeftMotorSpeed = 1.0;
-            targetRightMotorSpeed = -1.0;
-        }
-
-        if (receivedChar == ' ')
-        {
-            targetLeftMotorSpeed = 0;
-            targetRightMotorSpeed = 0;
-        }
-
-        if (receivedChar == '1')
-        {
-            SetWeaponMotorSpeed(0.1);
-        }
-        if (receivedChar == '2')
-        {
-            SetWeaponMotorSpeed(0.2);
-        }
-        if (receivedChar == '3')
-        {
-            SetWeaponMotorSpeed(0.3);
-        }
-        if (receivedChar == '4')
-        {
-            SetWeaponMotorSpeed(0.4);
-        }
-        if (receivedChar == '5')
-        {
-            SetWeaponMotorSpeed(0.5);
-        }
-        if (receivedChar == '6')
-        {
-            SetWeaponMotorSpeed(0.6);
-        }
-        if (receivedChar == '7')
-        {
-            SetWeaponMotorSpeed(0.7);
-        }
-        if (receivedChar == '8')
-        {
-            SetWeaponMotorSpeed(0.8);
-        }
-        if (receivedChar == '9')
-        {
-            SetWeaponMotorSpeed(1);
-        }
-        if (receivedChar == '0')
-        {
-            SetWeaponMotorSpeed(0.0);
-        }
-    }
+    
 }
 
 void UpdateESCsToTargetValues()
