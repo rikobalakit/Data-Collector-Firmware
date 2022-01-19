@@ -26,11 +26,12 @@ public class BluetoothManager : BaseSystemManager
 
     public override void UpdateFromGameManager()
     {
+        var dataToSend =
+            $"{{\"l\": {GameManager.TranslationManager.LeftMotorThrottle},\"r\":{GameManager.TranslationManager.RightMotorThrottle}, \"w\": {GameManager.TranslationManager.WeaponMotorThrottle}}}\n";
+        Debug.Log(dataToSend);
+        
         if (_serialPort.IsOpen)
         {
-            var dataToSend =
-                $"{{\"l\": {GameManager.TranslationManager.LeftMotorThrottle},\"r\":{GameManager.TranslationManager.RightMotorThrottle}, \"w\": {GameManager.TranslationManager.WeaponMotorThrottle}}}\n";
-            Debug.Log(dataToSend);
             _serialPort.Write(dataToSend);
         }
         else

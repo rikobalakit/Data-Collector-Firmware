@@ -22,8 +22,8 @@
 #define HUE_REVERSE 0
 #define HUE_NEUTRAL 40
 #define STARTING_BRIGHTNESS 20
-#define POWER 100 //Range 0 to 100, 100 being full power
-
+#define DRIVE_POWER_MAX 100 //Range 0 to 100, 100 being full power
+#define WEAPON_POWER_MAX 100 //Range 0 to 100, 100 being full power
 
 #if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
 #error Bluetooth is not enabled! Please run `make menuconfig` to and enable it
@@ -123,12 +123,42 @@ void SetWeaponMotorSpeed(float newSpeed)
         leds[LED_WEAPON_L3] = CRGB::Black;
         leds[LED_WEAPON_R3] = CRGB::Black;
     }
+    else if (newSpeed < 0 && newSpeed >= -0.333)
+    {
+        leds[LED_WEAPON_C] = CHSV(HUE_REVERSE, 255, brightness);
+        leds[LED_WEAPON_L1] = CHSV(HUE_REVERSE, 255, brightness);
+        leds[LED_WEAPON_R1] = CHSV(HUE_REVERSE, 255, brightness);
+        leds[LED_WEAPON_L2] = CRGB::Black;
+        leds[LED_WEAPON_R2] = CRGB::Black;
+        leds[LED_WEAPON_L3] = CRGB::Black;
+        leds[LED_WEAPON_R3] = CRGB::Black;
+    }
+    else if (newSpeed < -0.333 && newSpeed >= -0.666)
+    {
+        leds[LED_WEAPON_C] = CHSV(HUE_REVERSE, 255, brightness);
+        leds[LED_WEAPON_L1] = CHSV(HUE_REVERSE, 255, brightness);
+        leds[LED_WEAPON_R1] = CHSV(HUE_REVERSE, 255, brightness);
+        leds[LED_WEAPON_L2] = CHSV(HUE_REVERSE, 255, brightness);
+        leds[LED_WEAPON_R2] = CHSV(HUE_REVERSE, 255, brightness);
+        leds[LED_WEAPON_L3] = CRGB::Black;
+        leds[LED_WEAPON_R3] = CRGB::Black;
+    }
+    if (newSpeed < -0.666)
+    {
+        leds[LED_WEAPON_C] = CHSV(HUE_REVERSE, 255, brightness);
+        leds[LED_WEAPON_L1] = CHSV(HUE_REVERSE, 255, brightness);
+        leds[LED_WEAPON_R1] = CHSV(HUE_REVERSE, 255, brightness);
+        leds[LED_WEAPON_L2] = CHSV(HUE_REVERSE, 255, brightness);
+        leds[LED_WEAPON_R2] = CHSV(HUE_REVERSE, 255, brightness);
+        leds[LED_WEAPON_L3] = CHSV(HUE_REVERSE, 255, brightness);
+        leds[LED_WEAPON_R3] = CHSV(HUE_REVERSE, 255, brightness);
+    }
 
-    int weaponPower = 180 * newSpeed;
+    int newPowerToWrite = 90 + int(newSpeed * (float) (90 * WEAPON_POWER_MAX / 100));
 
     SerialBT.print("Setting Weapon Motor to :");// write on BT app
-    SerialBT.println(weaponPower);// write on BT app      
-    WeaponMotor.write(weaponPower);
+    SerialBT.println(newPowerToWrite);// write on BT app      
+    WeaponMotor.write(newPowerToWrite);
 
 }
 
@@ -208,14 +238,14 @@ void SetDriveMotorSpeed(float newSpeed, bool isLeftMotor, int motorLeds[])
     
     if (isLeftMotor)
     {
-        int newPowerToWrite = 90 - int(newSpeed * (float) (90 * POWER / 100));
+        int newPowerToWrite = 90 - int(newSpeed * (float) (90 * DRIVE_POWER_MAX / 100));
         SerialBT.print("Setting Left Drive to :");// write on BT app
         SerialBT.println(newPowerToWrite);// write on BT app      
         DriveMotorLeft.write(newPowerToWrite);
     }
     else
     {
-        int newPowerToWrite = 90 + int(newSpeed * (float) (90 * POWER / 100));
+        int newPowerToWrite = 90 + int(newSpeed * (float) (90 * DRIVE_POWER_MAX / 100));
         SerialBT.print("Setting Right Drive to :");// write on BT app
         SerialBT.println(newPowerToWrite);// write on BT app      
         DriveMotorRight.write(newPowerToWrite);
@@ -275,7 +305,7 @@ void Start()
     WeaponMotor.setPeriodHertz(50);
     DriveMotorLeft.attach(PIN_DRIVE_MOTOR_LEFT, 1000, 2000);
     DriveMotorRight.attach(PIN_DRIVE_MOTOR_RIGHT, 1000, 2000);
-    WeaponMotor.attach(PIN_WEAPON_MOTOR, 750, 2000);
+    WeaponMotor.attach(PIN_WEAPON_MOTOR, 1000, 2000);
 
     for (int i = 0; i < 3; ++i)
     {

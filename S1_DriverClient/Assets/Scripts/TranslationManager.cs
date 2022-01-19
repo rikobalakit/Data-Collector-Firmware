@@ -45,6 +45,23 @@ public class TranslationManager : BaseSystemManager
         
         _leftMotorThrottle = GameManager.ControllerManager.LeftVerticalValue * throttleMultiplier;
         _rightMotorThrottle = GameManager.ControllerManager.RightVerticalValue * throttleMultiplier;
-        _weaponMotorThrottle = Mathf.Max(GameManager.ControllerManager.LeftTriggerValue, GameManager.ControllerManager.RightTriggerValue)/2f+0.5f;
+
+        if (GameManager.ControllerManager.LeftTriggerValue < -0.95f && GameManager.ControllerManager.RightTriggerValue < -0.95f)
+        {
+            _weaponMotorThrottle = 0f;
+        }
+        else
+        {
+            if (GameManager.ControllerManager.LeftTriggerValue > GameManager.ControllerManager.RightTriggerValue)
+            {
+                // Left trigger is dominant
+                _weaponMotorThrottle = -1*(GameManager.ControllerManager.LeftTriggerValue + 1f)/2f;
+            }
+            else
+            {
+                _weaponMotorThrottle = (GameManager.ControllerManager.RightTriggerValue + 1f)/2f;
+                // Right trigger is dominant
+            }
+        }
     }
 }

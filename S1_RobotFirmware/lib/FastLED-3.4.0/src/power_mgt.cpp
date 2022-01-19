@@ -4,7 +4,7 @@
 
 FASTLED_NAMESPACE_BEGIN
 
-//// POWER MANAGEMENT
+//// DRIVE_POWER_MAX MANAGEMENT
 
 // These power usage values are approximate, and your exact readings
 // will be slightly (10%?) different from these.
