@@ -13,7 +13,7 @@ public class GameManager : BaseSystemManager
     
     private void Start()
     {
-        Time.fixedDeltaTime = 0.05f;
+        Time.fixedDeltaTime = 0.1f;
         
         _controllerManager = gameObject.AddComponent<ControllerManager>();
         _translationManager = gameObject.AddComponent<TranslationManager>();
