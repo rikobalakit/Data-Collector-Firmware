@@ -106,7 +106,7 @@ void fill_gradient( T* targetArray,
         startcolor = tc;
     }
 
-    // If we're fading toward black (val=0) or white (sat=0),
+    // If we're fading toward black (_analogPinValue=0) or white (sat=0),
     // then set the endhue to the starthue.
     // This lets us ramp smoothly to black or white, regardless
     // of what 'hue' was set in the endcolor (since it doesn't matter)
@@ -114,7 +114,7 @@ void fill_gradient( T* targetArray,
         endcolor.hue = startcolor.hue;
     }
 
-    // Similarly, if we're fading in from black (val=0) or white (sat=0)
+    // Similarly, if we're fading in from black (_analogPinValue=0) or white (sat=0)
     // then set the starthue to the endhue.
     // This lets us ramp smoothly up from black or white, regardless
     // of what 'hue' was set in the startcolor (since it doesn't matter)

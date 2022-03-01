@@ -33,13 +33,13 @@ CMinWait<50>   gWait;
 static bool gInitialized = false;
 
 ESP32RMTController::ESP32RMTController(int DATA_PIN, int T1, int T2, int T3)
-    : mPixelData(0), 
-      mSize(0), 
-      mCur(0), 
-      mWhichHalf(0),
-      mBuffer(0),
-      mBufferSize(0),
-      mCurPulse(0)
+        : mPixelData(0),
+          mSize(0),
+          mCur(0),
+          mWhichHalf(0),
+          mBuffer(0),
+          mBufferSize(0),
+          mCurPulse(0)
 {
     // -- Precompute rmt items corresponding to a zero bit and a one bit
     //    according to the timing values given in the template instantiation
@@ -122,7 +122,7 @@ void ESP32RMTController::init(gpio_num_t pin)
         gTX_sem = xSemaphoreCreateBinary();
         xSemaphoreGive(gTX_sem);
     }
-                
+
     if ( ! FASTLED_RMT_BUILTIN_DRIVER) {
         // -- Allocate the interrupt if we have not done so yet. This
         //    interrupt handler must work for all different kinds of
@@ -270,40 +270,40 @@ void IRAM_ATTR ESP32RMTController::tx_start()
 //    controller is done until we look it up.
 void IRAM_ATTR ESP32RMTController::doneOnChannel(rmt_channel_t channel, void * arg)
 {
-    ESP32RMTController * pController = gOnChannel[channel];
+ESP32RMTController * pController = gOnChannel[channel];
 
-    // -- Turn off output on the pin
-    // SZG: Do I really need to do this?
-    gpio_matrix_out(pController->mPin, 0x100, 0, 0);
+// -- Turn off output on the pin
+// SZG: Do I really need to do this?
+gpio_matrix_out(pController->mPin, 0x100, 0, 0);
 
-    // -- Turn off the interrupts
-    // rmt_set_tx_intr_en(channel, false);
-    // Inline the code for rmt_tx_stop, so it can be placed in IRAM
-    RMT.int_ena.val &= ~(1 << (channel * 3));
-    RMT.conf_ch[channel].conf1.mem_rd_rst = 1;
-    RMT.conf_ch[channel].conf1.mem_rd_rst = 0;
+// -- Turn off the interrupts
+// rmt_set_tx_intr_en(channel, false);
+// Inline the code for rmt_tx_stop, so it can be placed in IRAM
+RMT.int_ena.val &= ~(1 << (channel * 3));
+RMT.conf_ch[channel].conf1.mem_rd_rst = 1;
+RMT.conf_ch[channel].conf1.mem_rd_rst = 0;
 
-    gOnChannel[channel] = NULL;
-    gNumDone++;
+gOnChannel[channel] = NULL;
+gNumDone++;
 
-    if (gNumDone == gNumControllers) {
-        // -- If this is the last controller, signal that we are all done
-        if (FASTLED_RMT_BUILTIN_DRIVER) {
-            xSemaphoreGive(gTX_sem);
-        } else {
-            portBASE_TYPE HPTaskAwoken = 0;
-            xSemaphoreGiveFromISR(gTX_sem, &HPTaskAwoken);
-            if (HPTaskAwoken == pdTRUE) portYIELD_FROM_ISR();
-        }
-    } else {
-        // -- Otherwise, if there are still controllers waiting, then
-        //    start the next one on this channel
-        if (gNext < gNumControllers) {
-            startNext(channel);
-        }
-    }
+if (gNumDone == gNumControllers) {
+// -- If this is the last controller, signal that we are all done
+if (FASTLED_RMT_BUILTIN_DRIVER) {
+xSemaphoreGive(gTX_sem);
+} else {
+portBASE_TYPE HPTaskAwoken = 0;
+xSemaphoreGiveFromISR(gTX_sem, &HPTaskAwoken);
+if (HPTaskAwoken == pdTRUE) portYIELD_FROM_ISR();
 }
-    
+} else {
+// -- Otherwise, if there are still controllers waiting, then
+//    start the next one on this channel
+if (gNext < gNumControllers) {
+startNext(channel);
+}
+}
+}
+
 // -- Custom interrupt handler
 //    This interrupt handler handles two cases: a controller is
 //    done writing its data, or a controller needs to fill the
@@ -380,7 +380,7 @@ void IRAM_ATTR ESP32RMTController::fillNext(bool check_time)
             // -- Get the next four bytes of pixel data
             register uint32_t pixeldata = mPixelData[mCur];
             mCur++;
-            
+
             // Shift bits out, MSB first, setting RMTMEM.chan[n].data32[x] to the 
             // rmt_item32_t value corresponding to the buffered bit value
             for (register uint32_t j = 0; j < 32; j++) {

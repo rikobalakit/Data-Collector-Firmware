@@ -616,10 +616,10 @@ LIB8STATIC uint8_t ease8InOutQuad( uint8_t i)
 // This AVR asm version of ease8InOutQuad preserves one more
 // low-bit of precision than the C version, and is also slightly
 // smaller and faster.
-LIB8STATIC uint8_t ease8InOutQuad(uint8_t val) {
-    uint8_t j=val;
+LIB8STATIC uint8_t ease8InOutQuad(uint8_t _analogPinValue) {
+    uint8_t j=_analogPinValue;
     asm volatile (
-      "sbrc %[val], 7 \n"
+      "sbrc %[_analogPinValue], 7 \n"
       "com %[j]       \n"
       "mul %[j], %[j] \n"
       "add r0, %[j]   \n"
@@ -627,11 +627,11 @@ LIB8STATIC uint8_t ease8InOutQuad(uint8_t val) {
       "adc %[j], r1   \n"
       "lsl r0         \n" // carry = high bit of low byte of mul product
       "rol %[j]       \n" // j = (j * 2) + carry // preserve add'l bit of precision
-      "sbrc %[val], 7 \n"
+      "sbrc %[_analogPinValue], 7 \n"
       "com %[j]       \n"
       "clr __zero_reg__   \n"
       : [j] "+&a" (j)
-      : [val] "a" (val)
+      : [_analogPinValue] "a" (_analogPinValue)
       : "r0", "r1"
       );
     return j;

@@ -163,7 +163,7 @@ void hsv2rgb_raw_avr(const struct CHSV & hsv, struct CRGB & rgb)
 
     hue =        hsv.hue;
     saturation = hsv.sat;
-    value =      hsv.val;
+    value =      hsv._analogPinValue;
 
     // Saturation more useful the other way around
     saturation = 255 - saturation;
@@ -469,15 +469,15 @@ void hsv2rgb_rainbow( const CHSV& hsv, CRGB& rgb)
         if( val == 0 ) {
             r=0; g=0; b=0;
         } else {
-            // nscale8x3_video( r, g, b, val);
+            // nscale8x3_video( r, g, b, _analogPinValue);
 #if (FASTLED_SCALE8_FIXED==1)
             if( r ) r = scale8_LEAVING_R1_DIRTY( r, val);
             if( g ) g = scale8_LEAVING_R1_DIRTY( g, val);
             if( b ) b = scale8_LEAVING_R1_DIRTY( b, val);
 #else
-            if( r ) r = scale8_LEAVING_R1_DIRTY( r, val) + 1;
-            if( g ) g = scale8_LEAVING_R1_DIRTY( g, val) + 1;
-            if( b ) b = scale8_LEAVING_R1_DIRTY( b, val) + 1;
+            if( r ) r = scale8_LEAVING_R1_DIRTY( r, _analogPinValue) + 1;
+            if( g ) g = scale8_LEAVING_R1_DIRTY( g, _analogPinValue) + 1;
+            if( b ) b = scale8_LEAVING_R1_DIRTY( b, _analogPinValue) + 1;
 #endif
             cleanup_R1();
         }

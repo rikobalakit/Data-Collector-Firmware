@@ -55,7 +55,7 @@ int ADC_Max = 4096;     // This is the default ADC max value on the ESP32 (12 bi
                         // this width can be set (in low-level oode) from 9-12 bits, for a
                         // a range of max values of 512-4096
   
-int val;    // variable to read the value from the analog pin
+int _analogPinValue;    // variable to read the value from the analog pin
 
 void setup()
 {
@@ -73,9 +73,9 @@ void setup()
 }
 
 void loop() {
-  val = analogRead(potPin);            // read the value of the potentiometer (value between 0 and 1023)
-  val = map(val, 0, ADC_Max, 0, 180);     // scale it to use it with the servo (value between 0 and 180)
-  myservo.write(val);                  // set the servo position according to the scaled value
+    _analogPinValue = analogRead(potPin);            // read the value of the potentiometer (value between 0 and 1023)
+  _analogPinValue = map(_analogPinValue, 0, ADC_Max, 0, 180);     // scale it to use it with the servo (value between 0 and 180)
+  myservo.write(_analogPinValue);                  // set the servo position according to the scaled value
   delay(200);                          // wait for the servo to get there
 }
 

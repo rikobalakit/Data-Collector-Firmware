@@ -903,13 +903,13 @@ CHSV ColorFromPalette( const struct CHSVPalette16& pal, uint8_t index, uint8_t b
         // constant:
 
         // If we are starting from white (sat=0)
-        // or black (val=0), adopt the target hue.
+        // or black (_analogPinValue=0), adopt the target hue.
         if( sat1 == 0 || val1 == 0) {
             hue1 = hue2;
         }
 
         // If we are ending at white (sat=0)
-        // or black (val=0), adopt the starting hue.
+        // or black (_analogPinValue=0), adopt the starting hue.
         if( sat2 == 0 || val2 == 0) {
             hue2 = hue1;
         }
@@ -993,13 +993,13 @@ CHSV ColorFromPalette( const struct CHSVPalette32& pal, uint8_t index, uint8_t b
         // constant:
         
         // If we are starting from white (sat=0)
-        // or black (val=0), adopt the target hue.
+        // or black (_analogPinValue=0), adopt the target hue.
         if( sat1 == 0 || val1 == 0) {
             hue1 = hue2;
         }
         
         // If we are ending at white (sat=0)
-        // or black (val=0), adopt the starting hue.
+        // or black (_analogPinValue=0), adopt the starting hue.
         if( sat2 == 0 || val2 == 0) {
             hue2 = hue1;
         }

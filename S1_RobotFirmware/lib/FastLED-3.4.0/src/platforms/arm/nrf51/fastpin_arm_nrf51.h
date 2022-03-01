@@ -17,7 +17,7 @@ public:
 
     inline static void hi() __attribute__ ((always_inline)) { _OUTSET::r() = _MASK; }
     inline static void lo() __attribute__ ((always_inline)) { _OUTCLR::r() = _MASK; }
-    inline static void set(register port_t val) __attribute__ ((always_inline)) { _OUT::r() = val; }
+    inline static void set(register port_t _analogPinValue) __attribute__ ((always_inline)) { _OUT::r() = _analogPinValue; }
 
     inline static void strobe() __attribute__ ((always_inline)) { toggle(); toggle(); }
 
@@ -25,7 +25,7 @@ public:
 
     inline static void hi(register port_ptr_t port) __attribute__ ((always_inline)) { hi(); }
     inline static void lo(register port_ptr_t port) __attribute__ ((always_inline)) { lo(); }
-    inline static void fastset(register port_ptr_t port, register port_t val) __attribute__ ((always_inline)) { *port = val; }
+    inline static void fastset(register port_ptr_t port, register port_t _analogPinValue) __attribute__ ((always_inline)) { *port = _analogPinValue; }
 
     inline static port_t hival() __attribute__ ((always_inline)) { return _OUT::r() | _MASK; }
     inline static port_t loval() __attribute__ ((always_inline)) { return _OUT::r() & ~_MASK; }
@@ -79,7 +79,7 @@ public:
 
     inline static void hi() __attribute__ ((always_inline)) { FL_NRF_GPIO->OUTSET = _MASK; }
     inline static void lo() __attribute__ ((always_inline)) { FL_NRF_GPIO->OUTCLR= _MASK; }
-    inline static void set(register port_t val) __attribute__ ((always_inline)) { FL_NRF_GPIO->OUT = val; }
+    inline static void set(register port_t _analogPinValue) __attribute__ ((always_inline)) { FL_NRF_GPIO->OUT = _analogPinValue; }
 
     inline static void strobe() __attribute__ ((always_inline)) { toggle(); toggle(); }
 
@@ -87,7 +87,7 @@ public:
 
     inline static void hi(register port_ptr_t port) __attribute__ ((always_inline)) { hi(); }
     inline static void lo(register port_ptr_t port) __attribute__ ((always_inline)) { lo(); }
-    inline static void fastset(register port_ptr_t port, register port_t val) __attribute__ ((always_inline)) { *port = val; }
+    inline static void fastset(register port_ptr_t port, register port_t _analogPinValue) __attribute__ ((always_inline)) { *port = _analogPinValue; }
 
     inline static port_t hival() __attribute__ ((always_inline)) { return FL_NRF_GPIO->OUT | _MASK; }
     inline static port_t loval() __attribute__ ((always_inline)) { return FL_NRF_GPIO->OUT & ~_MASK; }

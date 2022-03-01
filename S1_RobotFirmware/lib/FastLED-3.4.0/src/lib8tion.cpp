@@ -29,7 +29,7 @@ uint16_t rand16seed = RAND16_SEED;
 #if defined(__AVR__)
 extern "C" {
 //__attribute__ ((noinline))
-void * memset8 ( void * ptr, uint8_t val, uint16_t num )
+void * memset8 ( void * ptr, uint8_t _analogPinValue, uint16_t num )
 {
     asm volatile(
          "  movw r26, %[ptr]        \n\t"
@@ -37,9 +37,9 @@ void * memset8 ( void * ptr, uint8_t val, uint16_t num )
          "  rjmp Lseteven_%=        \n\t"
          "  rjmp Lsetodd_%=         \n\t"
          "Lsetloop_%=:              \n\t"
-         "  st X+, %[val]           \n\t"
+         "  st X+, %[_analogPinValue]           \n\t"
          "Lsetodd_%=:               \n\t"
-         "  st X+, %[val]           \n\t"
+         "  st X+, %[_analogPinValue]           \n\t"
          "Lseteven_%=:              \n\t"
          "  subi %A[num], 2         \n\t"
          "  brcc Lsetloop_%=        \n\t"
@@ -47,7 +47,7 @@ void * memset8 ( void * ptr, uint8_t val, uint16_t num )
          "  brcc Lsetloop_%=        \n\t"
          : [num] "+r" (num)
          : [ptr]  "r" (ptr),
-           [val]  "r" (val)
+           [_analogPinValue]  "r" (_analogPinValue)
          : "memory"
          );
     return ptr;

@@ -119,9 +119,9 @@ public:
 
 	inline void hi(register port_ptr_t port) __attribute__ ((always_inline)) { *port |= mPinMask; }
 	inline void lo(register port_ptr_t port) __attribute__ ((always_inline)) { *port &= ~mPinMask; }
-	inline void set(register port_t val) __attribute__ ((always_inline)) { *mPort = val; }
+	inline void set(register port_t _analogPinValue) __attribute__ ((always_inline)) { *mPort = _analogPinValue; }
 
-	inline void fastset(register port_ptr_t port, register port_t val) __attribute__ ((always_inline)) { *port  = val; }
+	inline void fastset(register port_ptr_t port, register port_t _analogPinValue) __attribute__ ((always_inline)) { *port  = _analogPinValue; }
 
 	port_t hival() __attribute__ ((always_inline)) { return *mPort | mPinMask;  }
 	port_t loval() __attribute__ ((always_inline)) { return *mPort & ~mPinMask; }
@@ -188,9 +188,9 @@ public:
 
 	inline static void hi(register port_ptr_t port) __attribute__ ((always_inline)) { *port |= sPinMask; }
 	inline static void lo(register port_ptr_t port) __attribute__ ((always_inline)) { *port &= ~sPinMask; }
-	inline static void set(register port_t val) __attribute__ ((always_inline)) { *sPort = val; }
+	inline static void set(register port_t _analogPinValue) __attribute__ ((always_inline)) { *sPort = _analogPinValue; }
 
-	inline static void fastset(register port_ptr_t port, register port_t val) __attribute__ ((always_inline)) { *port  = val; }
+	inline static void fastset(register port_ptr_t port, register port_t _analogPinValue) __attribute__ ((always_inline)) { *port  = _analogPinValue; }
 
 	static port_t hival() __attribute__ ((always_inline)) { return *sPort | sPinMask;  }
 	static port_t loval() __attribute__ ((always_inline)) { return *sPort & ~sPinMask; }

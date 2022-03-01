@@ -245,8 +245,8 @@ static int8_t inline __attribute__((always_inline)) grad8(uint8_t hash, int8_t x
 
 
 #ifdef FADE_12
-uint16_t logfade12(uint16_t val) {
-    return scale16(val,val)>>4;
+uint16_t logfade12(uint16_t _analogPinValue) {
+    return scale16(_analogPinValue,_analogPinValue)>>4;
 }
 
 static int16_t inline __attribute__((always_inline)) lerp15by12( int16_t a, int16_t b, fract16 frac)
