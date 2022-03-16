@@ -9,18 +9,21 @@
 #include "../lib/Adafruit_BNO055/Adafruit_BNO055.h"
 #include "../lib/Adafruit_BNO055/utility/imumaths.h"
 
-//orange 15- neopixel
-//yellow 2 - left
+
+
 //green 0 
+//yellow 2 - left
 //blue 4 - right
 //purple 12
 //grey 14 
+//orange 15- neopixel
 
 #define TOTAL_LED 64
-#define PIN_NUM_NEOPIXEL_OUTPUT 15
+#define PIN_NUM_NEOPIXEL_OUTPUT 0
 #define PIN_DRIVE_MOTOR_LEFT 2
 #define PIN_DRIVE_MOTOR_RIGHT 4
 #define PIN_WEAPON_MOTOR 12
+#define PIN_WEAPON_MOTOR_COPY 15
 
 #define LED_WEAPON_R3 35
 #define LED_WEAPON_R2 43
@@ -48,7 +51,7 @@
 
 #define HUE_PURPLE 213
 #define STARTING_BRIGHTNESS 40
-#define DRIVE_POWER_MAX 66 //Range 0 to 100, 100 being full power
+#define DRIVE_POWER_MAX 100 //Range 0 to 100, 100 being full power
 #define WEAPON_POWER_MAX 100 //Range 0 to 100, 100 being full power
 
 #define TIME_TO_HOLD_SHUTDOWN_BUTTON_MILLIS 3000
@@ -83,6 +86,9 @@ bool _reverseAllDriveMotors = true; // RPB: This is the case of like if we have 
 Servo _driveMotorLeft;
 Servo _driveMotorRight;
 Servo _weaponMotor;
+Servo _weaponMotorCopy;
+
+sensors_event_t event;
 
 int _delayLength = 10;
 
@@ -108,6 +114,8 @@ int lastAy = 0;
 int lastAz = 0;
 int lastGz = 0;
 
+float currentXOrientation = 0;
+
 bool _turboOn = false;
 bool _slowOn = false;
 
@@ -127,19 +135,25 @@ bool _isUpsideDown = false;
 
 bool _motorsAreAttached = false;
 
+bool _perfectForwardEngaged = false;
+float _perfectForwardStartAngle = 0;
+float _perfectForwardCorrectionFactor = 0.8f;
+
 void AttachMotors(bool shouldAttachMotors)
 {
     if (shouldAttachMotors)
     {
         _driveMotorLeft.attach(PIN_DRIVE_MOTOR_LEFT, 1000, 2000);
         _driveMotorRight.attach(PIN_DRIVE_MOTOR_RIGHT, 1000, 2000);
-        _weaponMotor.attach(PIN_WEAPON_MOTOR, 1000, 2000);
+        _weaponMotor.attach(PIN_WEAPON_MOTOR, 500, 2500);
+        _weaponMotorCopy.attach(PIN_WEAPON_MOTOR_COPY, 500, 2500);
     }
     else
     {
         _driveMotorLeft.detach();
         _driveMotorRight.detach();
         _weaponMotor.detach();
+        _weaponMotorCopy.detach();
     }
 
     _motorsAreAttached = shouldAttachMotors;
@@ -267,6 +281,7 @@ void SetWeaponMotorSpeed(float newSpeed)
     int newPowerToWrite = 90 + _centerTrim + int(newSpeed * (float) (90 * WEAPON_POWER_MAX / 100));
 
     _weaponMotor.write(newPowerToWrite);
+    _weaponMotorCopy.write(180 - newPowerToWrite);
 
 }
 
@@ -278,6 +293,7 @@ bool IsTimedOut()
 void UpdateInputValues()
 {
 
+    /*
     Serial.println("Accelerometer data:");
 
     Serial.print(" ax:  ");
@@ -291,7 +307,7 @@ void UpdateInputValues()
 
     Serial.print(" gz: ");
     Serial.print(Ps3.data.sensor.gyroscope.z, DEC);
-
+*/
     if (
             lastAx == Ps3.data.sensor.accelerometer.x &&
             lastAy == Ps3.data.sensor.accelerometer.y &&
@@ -311,7 +327,7 @@ void UpdateInputValues()
     lastAz = Ps3.data.sensor.accelerometer.z;
     lastGz = Ps3.data.sensor.gyroscope.z;
 
-    if (Ps3.data.button.triangle)
+    if (Ps3.data.button.select)
     {
         _forceShutdownAccumulatedMillis += _delayLength;
 
@@ -323,6 +339,11 @@ void UpdateInputValues()
         _forceShutdownProgress = 0;
     }
 
+    if (!Ps3.data.button.up && !Ps3.data.button.down )
+    {
+        _perfectForwardEngaged = false;
+    }
+
     if (Ps3.data.button.left || Ps3.data.button.right || Ps3.data.button.up || Ps3.data.button.down)
     {
         float leftMixedValue = 0;
@@ -331,24 +352,112 @@ void UpdateInputValues()
 
         if (Ps3.data.button.up)
         {
-            leftMixedValue += 1;
-            rightMixedValue += 1;
+
+
+            if (!_perfectForwardEngaged)
+            {
+                _perfectForwardEngaged = true;
+                _perfectForwardStartAngle = currentXOrientation;
+            }
+            else
+            {
+                Serial.print("startAngle: ");
+                Serial.print(_perfectForwardStartAngle);
+                Serial.print(", currentAngle: ");
+                Serial.print(currentXOrientation);
+
+                int anglediff = (int) (currentXOrientation - _perfectForwardStartAngle + 180 + 360) % 360 - 180;
+
+                Serial.print("angle diff:");
+                Serial.print(anglediff);
+
+                // RPB: angle range is always 0 to 360
+                
+                if (anglediff > 3)
+                {
+                    Serial.print("correcting towards right:");
+                    leftMixedValue += 1;
+                    rightMixedValue += 1 * _perfectForwardCorrectionFactor;
+                    // too much to the left, turn right
+                }
+                else if (anglediff < -3)
+                {
+                    Serial.print("correcting towards left");
+                    leftMixedValue += 1 * _perfectForwardCorrectionFactor;
+                    rightMixedValue += 1;
+                    //too much to the right, turn left
+                }
+                else
+                {
+                    Serial.print("perfect forward");
+                    leftMixedValue += 1;
+                    rightMixedValue += 1;
+                    // perfect
+                }
+
+                Serial.println("");
+            }
         }
+
 
         if (Ps3.data.button.down)
         {
-            leftMixedValue -= 1;
-            rightMixedValue -= 1;
+
+            if (!_perfectForwardEngaged)
+            {
+                _perfectForwardEngaged = true;
+                _perfectForwardStartAngle = currentXOrientation;
+            }
+            else
+            {
+                Serial.print("startAngle: ");
+                Serial.print(_perfectForwardStartAngle);
+                Serial.print(", currentAngle: ");
+                Serial.print(currentXOrientation);
+
+                int anglediff = (int) (currentXOrientation - _perfectForwardStartAngle + 180 + 360) % 360 - 180;
+
+                Serial.print("angle diff:");
+                Serial.print(anglediff);
+
+                // RPB: angle range is always 0 to 360
+
+                if (anglediff > 3)
+                {
+                    Serial.print("correcting towards right:");
+                    leftMixedValue -= 1* _perfectForwardCorrectionFactor;
+                    rightMixedValue -= 1 ;
+                    // too much to the left, turn right
+                }
+                else if (anglediff < -3)
+                {
+                    Serial.print("correcting towards left");
+                    leftMixedValue -= 1 ;
+                    rightMixedValue -= 1* _perfectForwardCorrectionFactor;
+                    //too much to the right, turn left
+                }
+                else
+                {
+                    Serial.print("perfect forward");
+                    leftMixedValue -= 1;
+                    rightMixedValue -= 1;
+                    // perfect
+                }
+
+                Serial.println("");
+            }
         }
 
         if (Ps3.data.button.left)
         {
+            _perfectForwardEngaged = false;
             leftMixedValue -= 1;
             rightMixedValue += 1;
         }
 
         if (Ps3.data.button.right)
         {
+            _perfectForwardEngaged = false;
             leftMixedValue += 1;
             rightMixedValue -= 1;
         }
@@ -595,11 +704,14 @@ void Start()
     pinMode(PIN_NUM_NEOPIXEL_OUTPUT, OUTPUT);
 
     Ps3.begin("00:02:72:3F:5F:02");
+    Ps3.getAddress();
 
     ESP32PWM::allocateTimer(0);
     ESP32PWM::allocateTimer(1);
     ESP32PWM::allocateTimer(2);
     ESP32PWM::allocateTimer(3);
+    ESP32PWM::allocateTimer(4);
+    ESP32PWM::allocateTimer(5);
     Serial.begin(115200);
 
     if (!bno.begin())
@@ -616,7 +728,7 @@ void Start()
     FastLED.show();
     delay(500);
 
-    if(_useIMU)
+    if (_useIMU)
     {
         bno.setExtCrystalUse(true);
     }
@@ -624,6 +736,7 @@ void Start()
     _driveMotorLeft.setPeriodHertz(50);
     _driveMotorRight.setPeriodHertz(50);
     _weaponMotor.setPeriodHertz(50);
+    _weaponMotorCopy.setPeriodHertz(50);
 
 
     for (int i = 0; i < 3; ++i)
@@ -710,12 +823,12 @@ void UpdateESCsToTargetValues()
 
 void GetAndPrintOrientation()
 {
-    if(!_useIMU)
+    if (!_useIMU)
     {
         return;
     }
-    
-    sensors_event_t event;
+
+
     bno.getEvent(&event);
 
     /* Display the floating point data */
@@ -739,6 +852,149 @@ void GetAndPrintOrientation()
         _isUpsideDown = false;
     }
 
+    int orientationXIndex = -1;
+
+    currentXOrientation = 360 - event.orientation.x;
+
+
+    if (event.orientation.z > 90 || event.orientation.z < -90)
+    {
+        currentXOrientation = event.orientation.x;
+    }
+
+    if (currentXOrientation < 15.6)
+    {
+        orientationXIndex = 4;
+    }
+    else if (currentXOrientation < 29.35)
+    {
+        orientationXIndex = 5;
+    }
+    else if (currentXOrientation < 40.27)
+    {
+        orientationXIndex = 6;
+    }
+    else if (currentXOrientation < 49.73)
+    {
+        orientationXIndex = 7;
+    }
+    else if (currentXOrientation < 60.65)
+    {
+        orientationXIndex = 15;
+    }
+    else if (currentXOrientation < 74.4)
+    {
+        orientationXIndex = 23;
+    }
+    else if (currentXOrientation < 90)
+    {
+        orientationXIndex = 31;
+    }
+    else if (currentXOrientation < 105.6)
+    {
+        orientationXIndex = 39;
+    }
+    else if (currentXOrientation < 119.35)
+    {
+        orientationXIndex = 47;
+    }
+    else if (currentXOrientation < 130.27)
+    {
+        orientationXIndex = 55;
+    }
+    else if (currentXOrientation < 139.73)
+    {
+        orientationXIndex = 63;
+    }
+    else if (currentXOrientation < 150.65)
+    {
+        orientationXIndex = 62;
+    }
+    else if (currentXOrientation < 164.4)
+    {
+        orientationXIndex = 61;
+    }
+    else if (currentXOrientation < 180)
+    {
+        orientationXIndex = 60;
+    }
+    else if (currentXOrientation < 195.6)
+    {
+        orientationXIndex = 59;
+    }
+    else if (currentXOrientation < 209.35)
+    {
+        orientationXIndex = 58;
+    }
+    else if (currentXOrientation < 220.27)
+    {
+        orientationXIndex = 57;
+    }
+    else if (currentXOrientation < 229.73)
+    {
+        orientationXIndex = 56;
+    }
+    else if (currentXOrientation < 240.65)
+    {
+        orientationXIndex = 48;
+    }
+    else if (currentXOrientation < 254.4)
+    {
+        orientationXIndex = 40;
+    }
+    else if (currentXOrientation < 270)
+    {
+        orientationXIndex = 32;
+    }
+    else if (currentXOrientation < 285.6)
+    {
+        orientationXIndex = 24;
+    }
+    else if (currentXOrientation < 299.35)
+    {
+        orientationXIndex = 16;
+    }
+    else if (currentXOrientation < 310.29)
+    {
+        orientationXIndex = 8;
+    }
+    else if (currentXOrientation < 319.75)
+    {
+        orientationXIndex = 0;
+    }
+    else if (currentXOrientation < 330.67)
+    {
+        orientationXIndex = 1;
+    }
+    else if (currentXOrientation < 344.42)
+    {
+        orientationXIndex = 2;
+    }
+    else
+    {
+        orientationXIndex = 3;
+    }
+
+    if (event.orientation.z > 90 || event.orientation.z < -90)
+    {
+        for (int i = 0; i < 64; i++)
+        {
+            if (i == orientationXIndex)
+            {
+                leds[orientationXIndex] = CRGB::White;
+            }
+        }
+    }
+    else
+    {
+        for (int i = 0; i < 64; i++)
+        {
+            if (i == orientationXIndex)
+            {
+                leds[orientationXIndex] = CRGB::Red;
+            }
+        }
+    }
 }
 
 void OnForceShutDown(ulong shutdownEventReasonStartTime)
@@ -771,9 +1027,9 @@ void UpdateCenterLEDColors()
 {
     SetCenterLEDs(CRGB::Black);
 
-    if(_useIMU)
+    if (_useIMU)
     {
-        if(!_isUpsideDown)
+        if (!_isUpsideDown)
         {
             CRGB color = CHSV(HUE_PURPLE, 0, MAX_BRIGHTNESS);
             leds[27] = color;
@@ -792,7 +1048,7 @@ void UpdateCenterLEDColors()
         leds[27] = color;
         leds[28] = color;
     }
-    
+
     if (_forceShutdownProgress > 0.01f && _forceShutdownProgress < 0.99f && !_forceShutdownTurnedOn)
     {
         CRGB color = CHSV(HUE_DISCONNECTED, 255, (float) _forceShutdownProgress * (float) MAX_BRIGHTNESS + 25);
@@ -842,9 +1098,13 @@ void UpdateShutdownTimer()
 
 void Update()
 {
+    for (int i = 0; i < 64; ++i)
+    {
+        leds[i] = CRGB::Black;
+    }
+
     SetCenterLEDs(CRGB::Black);
 
-    GetAndPrintOrientation();
 
     UpdateInputValues();
     UpdateThrottleValues();
@@ -874,6 +1134,7 @@ void Update()
 
     UpdateCenterLEDColors();
 
+    GetAndPrintOrientation();
 }// lol unity style
 
 void setup()
