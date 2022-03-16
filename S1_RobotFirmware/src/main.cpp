@@ -139,6 +139,12 @@ bool _perfectForwardEngaged = false;
 float _perfectForwardStartAngle = 0;
 float _perfectForwardCorrectionFactor = 0.8f;
 
+bool _shouldShowTargetAngle = false;
+
+bool DO_GAME_DRIVE = true;
+
+int currentJoystickAngle = 0;
+
 void AttachMotors(bool shouldAttachMotors)
 {
     if (shouldAttachMotors)
@@ -288,6 +294,149 @@ void SetWeaponMotorSpeed(float newSpeed)
 bool IsTimedOut()
 {
     return millis() > (_lastUpdateMillis + _timeoutThresholdMillis);
+}
+
+
+void DisplayAnglePoint(float angleToDisplay, CRGB color)
+{
+    int angleDisplayIndex = -1;
+
+    while(angleToDisplay > 360 || angleToDisplay < 0)
+    {
+        if (angleToDisplay < 0)
+        {
+            angleToDisplay += 360;
+        }
+        if (angleToDisplay > 360)
+        {
+            angleToDisplay += -360;
+        }
+    }
+
+
+
+    if (angleToDisplay < 15.6)
+    {
+        angleDisplayIndex = 4;
+    }
+    else if (angleToDisplay < 29.35)
+    {
+        angleDisplayIndex = 5;
+    }
+    else if (angleToDisplay < 40.27)
+    {
+        angleDisplayIndex = 6;
+    }
+    else if (angleToDisplay < 49.73)
+    {
+        angleDisplayIndex = 7;
+    }
+    else if (angleToDisplay < 60.65)
+    {
+        angleDisplayIndex = 15;
+    }
+    else if (angleToDisplay < 74.4)
+    {
+        angleDisplayIndex = 23;
+    }
+    else if (angleToDisplay < 90)
+    {
+        angleDisplayIndex = 31;
+    }
+    else if (angleToDisplay < 105.6)
+    {
+        angleDisplayIndex = 39;
+    }
+    else if (angleToDisplay < 119.35)
+    {
+        angleDisplayIndex = 47;
+    }
+    else if (angleToDisplay < 130.27)
+    {
+        angleDisplayIndex = 55;
+    }
+    else if (angleToDisplay < 139.73)
+    {
+        angleDisplayIndex = 63;
+    }
+    else if (angleToDisplay < 150.65)
+    {
+        angleDisplayIndex = 62;
+    }
+    else if (angleToDisplay < 164.4)
+    {
+        angleDisplayIndex = 61;
+    }
+    else if (angleToDisplay < 180)
+    {
+        angleDisplayIndex = 60;
+    }
+    else if (angleToDisplay < 195.6)
+    {
+        angleDisplayIndex = 59;
+    }
+    else if (angleToDisplay < 209.35)
+    {
+        angleDisplayIndex = 58;
+    }
+    else if (angleToDisplay < 220.27)
+    {
+        angleDisplayIndex = 57;
+    }
+    else if (angleToDisplay < 229.73)
+    {
+        angleDisplayIndex = 56;
+    }
+    else if (angleToDisplay < 240.65)
+    {
+        angleDisplayIndex = 48;
+    }
+    else if (angleToDisplay < 254.4)
+    {
+        angleDisplayIndex = 40;
+    }
+    else if (angleToDisplay < 270)
+    {
+        angleDisplayIndex = 32;
+    }
+    else if (angleToDisplay < 285.6)
+    {
+        angleDisplayIndex = 24;
+    }
+    else if (angleToDisplay < 299.35)
+    {
+        angleDisplayIndex = 16;
+    }
+    else if (angleToDisplay < 310.29)
+    {
+        angleDisplayIndex = 8;
+    }
+    else if (angleToDisplay < 319.75)
+    {
+        angleDisplayIndex = 0;
+    }
+    else if (angleToDisplay < 330.67)
+    {
+        angleDisplayIndex = 1;
+    }
+    else if (angleToDisplay < 344.42)
+    {
+        angleDisplayIndex = 2;
+    }
+    else
+    {
+        angleDisplayIndex = 3;
+    }
+
+
+
+    for (int i = 0; i < 64; i++)
+    {
+        if (i == angleDisplayIndex)
+        {
+            leds[angleDisplayIndex] = color;
+        }
+    }
 }
 
 void UpdateInputValues()
@@ -487,23 +636,100 @@ void UpdateInputValues()
     }
     else
     {
-        if (Ps3.data.analog.stick.ly < _controlNeutralZone && Ps3.data.analog.stick.ly > -_controlNeutralZone)
+        if(DO_GAME_DRIVE)
         {
-            _leftVerticalValue = 0;
-        }
-        else
-        {
-            _leftVerticalValue = -(float) Ps3.data.analog.stick.ly / (float) 128;
-        }
+            _shouldShowTargetAngle = false;
+            
+            float leftMixedValue = 0;
+            float rightMixedValue = 0;
+            float rx = (float)Ps3.data.analog.stick.rx / (float)128;
+            float ry = -(float)Ps3.data.analog.stick.ry / (float)128;
+            float ly = -(float)Ps3.data.analog.stick.ly / (float)128;
 
-        if (Ps3.data.analog.stick.ry < _controlNeutralZone && Ps3.data.analog.stick.ry > -_controlNeutralZone)
-        {
-            _rightVerticalValue = 0;
+            if (rx == 0)
+            {
+                rx = 0.001;
+            }
+
+            if (abs(rx) > 0.5 || abs(ry) > 0.5)
+            {
+                _shouldShowTargetAngle = true;
+
+                float angleStick = atan2(ry, rx) * RAD_TO_DEG + 90;
+
+                currentJoystickAngle = angleStick;
+
+                int anglediff = (int) (currentXOrientation - angleStick  + 360) % 360 - 180;
+
+                Serial.print("targetAngle: ");
+                Serial.print(currentJoystickAngle);
+                Serial.print(", currentAngle: ");
+                Serial.print(currentXOrientation);
+                
+                Serial.print("angle diff:");
+                Serial.print(anglediff);
+                
+                float angleDiffSpeedMultiplier = ((float)abs(anglediff)) /180;
+                //rpb: angle diff can range from 0 to 180, so divide by 180
+                
+                if (anglediff > 3)
+                {
+                    Serial.print("correcting towards right:");
+                    leftMixedValue += 0.1+0.5 *angleDiffSpeedMultiplier;
+                    rightMixedValue += -0.1+-0.5 *angleDiffSpeedMultiplier;
+                    // too much to the left, turn right
+                }
+                else if (anglediff < -3)
+                {
+                    Serial.print("correcting towards left");
+                    leftMixedValue += -0.1+-0.5 *angleDiffSpeedMultiplier;
+                    rightMixedValue += 0.1+0.5 *angleDiffSpeedMultiplier;
+                    //too much to the right, turn left
+                }
+                else
+                {
+                    Serial.print("perfect forward");
+                    leftMixedValue += 0;
+                    rightMixedValue += 0;
+                    // perfect
+                }
+            }
+
+            if(abs(ly) > (0.1))
+            {
+                leftMixedValue += ly * 0.8;
+                rightMixedValue += ly * 0.8;
+            }
+
+            Serial.println();
+
+            _leftVerticalValue = leftMixedValue;
+            _rightVerticalValue = rightMixedValue;
         }
         else
         {
-            _rightVerticalValue = -(float) Ps3.data.analog.stick.ry / (float) 128;
+            // RPB: Do oldschool tank drive
+
+            if (Ps3.data.analog.stick.ly < _controlNeutralZone && Ps3.data.analog.stick.ly > -_controlNeutralZone)
+            {
+                _leftVerticalValue = 0;
+            }
+            else
+            {
+                _leftVerticalValue = -(float) Ps3.data.analog.stick.ly / (float) 128;
+            }
+
+            if (Ps3.data.analog.stick.ry < _controlNeutralZone && Ps3.data.analog.stick.ry > -_controlNeutralZone)
+            {
+                _rightVerticalValue = 0;
+            }
+            else
+            {
+                _rightVerticalValue = -(float) Ps3.data.analog.stick.ry / (float) 128;
+            }
         }
+        
+
     }
 
 
@@ -852,150 +1078,22 @@ void GetAndPrintOrientation()
         _isUpsideDown = false;
     }
 
-    int orientationXIndex = -1;
-
-    currentXOrientation = 360 - event.orientation.x;
-
-
     if (event.orientation.z > 90 || event.orientation.z < -90)
     {
         currentXOrientation = event.orientation.x;
     }
+    
+    currentXOrientation = 360 - event.orientation.x;
 
-    if (currentXOrientation < 15.6)
+    if(_shouldShowTargetAngle)
     {
-        orientationXIndex = 4;
+        DisplayAnglePoint(currentJoystickAngle + currentXOrientation, CRGB::Green);
     }
-    else if (currentXOrientation < 29.35)
-    {
-        orientationXIndex = 5;
-    }
-    else if (currentXOrientation < 40.27)
-    {
-        orientationXIndex = 6;
-    }
-    else if (currentXOrientation < 49.73)
-    {
-        orientationXIndex = 7;
-    }
-    else if (currentXOrientation < 60.65)
-    {
-        orientationXIndex = 15;
-    }
-    else if (currentXOrientation < 74.4)
-    {
-        orientationXIndex = 23;
-    }
-    else if (currentXOrientation < 90)
-    {
-        orientationXIndex = 31;
-    }
-    else if (currentXOrientation < 105.6)
-    {
-        orientationXIndex = 39;
-    }
-    else if (currentXOrientation < 119.35)
-    {
-        orientationXIndex = 47;
-    }
-    else if (currentXOrientation < 130.27)
-    {
-        orientationXIndex = 55;
-    }
-    else if (currentXOrientation < 139.73)
-    {
-        orientationXIndex = 63;
-    }
-    else if (currentXOrientation < 150.65)
-    {
-        orientationXIndex = 62;
-    }
-    else if (currentXOrientation < 164.4)
-    {
-        orientationXIndex = 61;
-    }
-    else if (currentXOrientation < 180)
-    {
-        orientationXIndex = 60;
-    }
-    else if (currentXOrientation < 195.6)
-    {
-        orientationXIndex = 59;
-    }
-    else if (currentXOrientation < 209.35)
-    {
-        orientationXIndex = 58;
-    }
-    else if (currentXOrientation < 220.27)
-    {
-        orientationXIndex = 57;
-    }
-    else if (currentXOrientation < 229.73)
-    {
-        orientationXIndex = 56;
-    }
-    else if (currentXOrientation < 240.65)
-    {
-        orientationXIndex = 48;
-    }
-    else if (currentXOrientation < 254.4)
-    {
-        orientationXIndex = 40;
-    }
-    else if (currentXOrientation < 270)
-    {
-        orientationXIndex = 32;
-    }
-    else if (currentXOrientation < 285.6)
-    {
-        orientationXIndex = 24;
-    }
-    else if (currentXOrientation < 299.35)
-    {
-        orientationXIndex = 16;
-    }
-    else if (currentXOrientation < 310.29)
-    {
-        orientationXIndex = 8;
-    }
-    else if (currentXOrientation < 319.75)
-    {
-        orientationXIndex = 0;
-    }
-    else if (currentXOrientation < 330.67)
-    {
-        orientationXIndex = 1;
-    }
-    else if (currentXOrientation < 344.42)
-    {
-        orientationXIndex = 2;
-    }
-    else
-    {
-        orientationXIndex = 3;
-    }
+    
+    DisplayAnglePoint(180+currentXOrientation, CRGB::White);
 
-    if (event.orientation.z > 90 || event.orientation.z < -90)
-    {
-        for (int i = 0; i < 64; i++)
-        {
-            if (i == orientationXIndex)
-            {
-                leds[orientationXIndex] = CRGB::White;
-            }
-        }
-    }
-    else
-    {
-        for (int i = 0; i < 64; i++)
-        {
-            if (i == orientationXIndex)
-            {
-                leds[orientationXIndex] = CRGB::Red;
-            }
-        }
-    }
 }
+
 
 void OnForceShutDown(ulong shutdownEventReasonStartTime)
 {
@@ -1015,7 +1113,7 @@ void OnTimeout()
 
     _timeoutDeclaredStartedMillis = _lastUpdateMillis + _timeoutThresholdMillis;
 
-    if (_timeoutDeclaredStartedMillis + 7500 < millis())
+    if (_timeoutDeclaredStartedMillis + 15000 < millis())
     {
         ESP.restart();
     }
