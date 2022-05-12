@@ -9,24 +9,28 @@
 #include "../lib/Adafruit_BNO055/Adafruit_BNO055.h"
 #include "../lib/Adafruit_BNO055/utility/imumaths.h"
 
+//SDA brown
+//SDL white
 
-
-//green 0 
-//yellow 2 - left
-//blue 4 - right
-//purple 12
-//grey 14 
-//orange 15- neopixel
+//green 13 GN
+//orange 2 OR
+//yellow 4 YL
+//blue 12 BL
+//purple 14 PR
+//silver 15 GY
 
 #define TOTAL_LED 64
-#define PIN_NUM_NEOPIXEL_OUTPUT 0
-#define PIN_DRIVE_MOTOR_LEFT 2
-#define PIN_DRIVE_MOTOR_RIGHT 4
-#define PIN_WEAPON_MOTOR 12
-#define PIN_WEAPON_MOTOR_COPY 15
+#define PIN_NUM_NEOPIXEL_OUTPUT 4
+#define PIN_DRIVE_MOTOR_LEFT 12
+#define PIN_DRIVE_MOTOR_RIGHT 2
+#define PIN_WEAPON_MOTOR 14
+#define PIN_WEAPON_MOTOR_COPY 13
+#define PIN_VOLTAGE_CHECK 27
 
 #define LED_WEAPON_R3 35
 #define LED_WEAPON_R2 43
+#define LED_WEAPON_R1 51
+#define LED_WEAPON_R1 51
 #define LED_WEAPON_R1 51
 #define LED_WEAPON_C1 59
 #define LED_WEAPON_C2 60
@@ -61,6 +65,9 @@
 #endif
 
 Adafruit_BNO055 bno = Adafruit_BNO055(55);
+
+int ledType = 1; // 0: 8x8 neopixel, 1: 2x2, 2: single
+
 int val;    // variable to read the value from the analog pin
 int _analogPinValue = 0;
 
@@ -114,6 +121,8 @@ int lastAy = 0;
 int lastAz = 0;
 int lastGz = 0;
 
+int voltageResultRaw = 0;
+
 float currentXOrientation = 0;
 
 bool _turboOn = false;
@@ -129,7 +138,11 @@ float _leftMotorThrottle = 0;
 float _rightMotorThrottle = 0;
 float _weaponMotorThrottle = 0;
 
+float voltagePerCell = 0;
+float voltagePerCellMinimum = 3.5;
+
 const float _centerTrim = -3;
+const float _centerTrimWeapon = 0;
 
 bool _isUpsideDown = false;
 
@@ -151,8 +164,8 @@ void AttachMotors(bool shouldAttachMotors)
     {
         _driveMotorLeft.attach(PIN_DRIVE_MOTOR_LEFT, 1000, 2000);
         _driveMotorRight.attach(PIN_DRIVE_MOTOR_RIGHT, 1000, 2000);
-        _weaponMotor.attach(PIN_WEAPON_MOTOR, 500, 2500);
-        _weaponMotorCopy.attach(PIN_WEAPON_MOTOR_COPY, 500, 2500);
+        _weaponMotor.attach(PIN_WEAPON_MOTOR, 1000, 2000);
+        _weaponMotorCopy.attach(PIN_WEAPON_MOTOR_COPY, 1000, 2000);
     }
     else
     {
@@ -167,15 +180,29 @@ void AttachMotors(bool shouldAttachMotors)
 
 void SetCenterLEDs(CRGB color)
 {
+    if (ledType == 0) // 8x8
+    {
+        leds[3] = color;
+        leds[4] = color;
+        leds[11] = color;
+        leds[12] = color;
+        leds[19] = color;
+        leds[20] = color;
+        leds[27] = color;
+        leds[28] = color;
+    }
+    else if (ledType == 1) //2x2, 0 = main, 1 = right, 2 = left, 3= weapon
+    {
+        leds[0] = color;
+    }
+    else if (ledType == 2) // 1x1 single
+    {
+        leds[0] = color;
+    }
 
-    leds[3] = color;
-    leds[4] = color;
-    leds[11] = color;
-    leds[12] = color;
-    leds[19] = color;
-    leds[20] = color;
-    leds[27] = color;
-    leds[28] = color;
+    /*
+
+    */
 }
 
 int GetBrightnessForSpeed(float speed)
@@ -191,100 +218,149 @@ int GetBrightnessForSpeed(float speed)
 
 void SetWeaponMotorSpeed(float newSpeed)
 {
-    if (!_motorsAreAttached)
+    if (ledType == 0) // 8x8
     {
-        leds[LED_WEAPON_C1] = CHSV(HUE_DISCONNECTED, 255, MAX_BRIGHTNESS);
-        leds[LED_WEAPON_C2] = CHSV(HUE_DISCONNECTED, 255, MAX_BRIGHTNESS);
-        leds[LED_WEAPON_L1] = CHSV(HUE_DISCONNECTED, 255, MAX_BRIGHTNESS);
-        leds[LED_WEAPON_R1] = CHSV(HUE_DISCONNECTED, 255, MAX_BRIGHTNESS);
-        leds[LED_WEAPON_L2] = CRGB::Black;
-        leds[LED_WEAPON_R2] = CRGB::Black;
-        leds[LED_WEAPON_L3] = CRGB::Black;
-        leds[LED_WEAPON_R3] = CRGB::Black;
+        if (!_motorsAreAttached)
+        {
+            leds[LED_WEAPON_C1] = CHSV(HUE_DISCONNECTED, 255, MAX_BRIGHTNESS);
+            leds[LED_WEAPON_C2] = CHSV(HUE_DISCONNECTED, 255, MAX_BRIGHTNESS);
+            leds[LED_WEAPON_L1] = CHSV(HUE_DISCONNECTED, 255, MAX_BRIGHTNESS);
+            leds[LED_WEAPON_R1] = CHSV(HUE_DISCONNECTED, 255, MAX_BRIGHTNESS);
+            leds[LED_WEAPON_L2] = CRGB::Black;
+            leds[LED_WEAPON_R2] = CRGB::Black;
+            leds[LED_WEAPON_L3] = CRGB::Black;
+            leds[LED_WEAPON_R3] = CRGB::Black;
+        }
+        else
+        {
+
+            int brightness = GetBrightnessForSpeed(newSpeed);
+            if (newSpeed > 0.666)
+            {
+                leds[LED_WEAPON_C1] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
+                leds[LED_WEAPON_C2] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
+                leds[LED_WEAPON_L1] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
+                leds[LED_WEAPON_R1] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
+                leds[LED_WEAPON_L2] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
+                leds[LED_WEAPON_R2] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
+                leds[LED_WEAPON_L3] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
+                leds[LED_WEAPON_R3] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
+            }
+            else if (newSpeed > 0.333 && newSpeed <= 0.666)
+            {
+                leds[LED_WEAPON_C1] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
+                leds[LED_WEAPON_C2] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
+                leds[LED_WEAPON_L1] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
+                leds[LED_WEAPON_R1] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
+                leds[LED_WEAPON_L2] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
+                leds[LED_WEAPON_R2] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
+                leds[LED_WEAPON_L3] = CRGB::Black;
+                leds[LED_WEAPON_R3] = CRGB::Black;
+            }
+            else if (newSpeed > 0 && newSpeed <= 0.333)
+            {
+                leds[LED_WEAPON_C1] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
+                leds[LED_WEAPON_C2] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
+                leds[LED_WEAPON_L1] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
+                leds[LED_WEAPON_R1] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
+                leds[LED_WEAPON_L2] = CRGB::Black;
+                leds[LED_WEAPON_R2] = CRGB::Black;
+                leds[LED_WEAPON_L3] = CRGB::Black;
+                leds[LED_WEAPON_R3] = CRGB::Black;
+            }
+            else if (newSpeed == 0)
+            {
+                leds[LED_WEAPON_C1] = CHSV(HUE_NEUTRAL, SAT_NEUTRAL, brightness);
+                leds[LED_WEAPON_C2] = CHSV(HUE_NEUTRAL, SAT_NEUTRAL, brightness);
+                leds[LED_WEAPON_L1] = CHSV(HUE_NEUTRAL, SAT_NEUTRAL, brightness);
+                leds[LED_WEAPON_R1] = CHSV(HUE_NEUTRAL, SAT_NEUTRAL, brightness);
+                leds[LED_WEAPON_L2] = CRGB::Black;
+                leds[LED_WEAPON_R2] = CRGB::Black;
+                leds[LED_WEAPON_L3] = CRGB::Black;
+                leds[LED_WEAPON_R3] = CRGB::Black;
+            }
+            else if (newSpeed < 0 && newSpeed >= -0.333)
+            {
+                leds[LED_WEAPON_C1] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
+                leds[LED_WEAPON_C2] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
+                leds[LED_WEAPON_L1] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
+                leds[LED_WEAPON_R1] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
+                leds[LED_WEAPON_L2] = CRGB::Black;
+                leds[LED_WEAPON_R2] = CRGB::Black;
+                leds[LED_WEAPON_L3] = CRGB::Black;
+                leds[LED_WEAPON_R3] = CRGB::Black;
+            }
+            else if (newSpeed < -0.333 && newSpeed >= -0.666)
+            {
+                leds[LED_WEAPON_C1] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
+                leds[LED_WEAPON_C2] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
+                leds[LED_WEAPON_L1] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
+                leds[LED_WEAPON_R1] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
+                leds[LED_WEAPON_L2] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
+                leds[LED_WEAPON_R2] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
+                leds[LED_WEAPON_L3] = CRGB::Black;
+                leds[LED_WEAPON_R3] = CRGB::Black;
+            }
+            if (newSpeed < -0.666)
+            {
+                leds[LED_WEAPON_C1] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
+                leds[LED_WEAPON_C2] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
+                leds[LED_WEAPON_L1] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
+                leds[LED_WEAPON_R1] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
+                leds[LED_WEAPON_L2] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
+                leds[LED_WEAPON_R2] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
+                leds[LED_WEAPON_L3] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
+                leds[LED_WEAPON_R3] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
+            }
+        }
     }
-    else
+    else if (ledType == 1) //2x2, 0 = main, 1 = right, 2 = left, 3= weapon
+    {
+        if (!_motorsAreAttached)
+        {
+            leds[3] = CHSV(HUE_DISCONNECTED, 255, MAX_BRIGHTNESS);
+        }
+        else
+        {
+
+            int brightness = GetBrightnessForSpeed(newSpeed);
+            if (newSpeed > 0.666)
+            {
+                leds[3] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
+            }
+            else if (newSpeed > 0.333 && newSpeed <= 0.666)
+            {
+                leds[3] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
+            }
+            else if (newSpeed > 0 && newSpeed <= 0.333)
+            {
+                leds[3] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
+            }
+            else if (newSpeed == 0)
+            {
+                leds[3] = CHSV(HUE_NEUTRAL, SAT_NEUTRAL, brightness);
+            }
+            else if (newSpeed < 0 && newSpeed >= -0.333)
+            {
+                leds[3] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
+            }
+            else if (newSpeed < -0.333 && newSpeed >= -0.666)
+            {
+                leds[3] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
+            }
+            if (newSpeed < -0.666)
+            {
+                leds[3] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
+            }
+        }
+    }
+    else if (ledType == 2) // 1x1 single
     {
 
-        int brightness = GetBrightnessForSpeed(newSpeed);
-        if (newSpeed > 0.666)
-        {
-            leds[LED_WEAPON_C1] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
-            leds[LED_WEAPON_C2] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
-            leds[LED_WEAPON_L1] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
-            leds[LED_WEAPON_R1] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
-            leds[LED_WEAPON_L2] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
-            leds[LED_WEAPON_R2] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
-            leds[LED_WEAPON_L3] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
-            leds[LED_WEAPON_R3] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
-        }
-        else if (newSpeed > 0.333 && newSpeed <= 0.666)
-        {
-            leds[LED_WEAPON_C1] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
-            leds[LED_WEAPON_C2] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
-            leds[LED_WEAPON_L1] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
-            leds[LED_WEAPON_R1] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
-            leds[LED_WEAPON_L2] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
-            leds[LED_WEAPON_R2] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
-            leds[LED_WEAPON_L3] = CRGB::Black;
-            leds[LED_WEAPON_R3] = CRGB::Black;
-        }
-        else if (newSpeed > 0 && newSpeed <= 0.333)
-        {
-            leds[LED_WEAPON_C1] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
-            leds[LED_WEAPON_C2] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
-            leds[LED_WEAPON_L1] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
-            leds[LED_WEAPON_R1] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
-            leds[LED_WEAPON_L2] = CRGB::Black;
-            leds[LED_WEAPON_R2] = CRGB::Black;
-            leds[LED_WEAPON_L3] = CRGB::Black;
-            leds[LED_WEAPON_R3] = CRGB::Black;
-        }
-        else if (newSpeed == 0)
-        {
-            leds[LED_WEAPON_C1] = CHSV(HUE_NEUTRAL, SAT_NEUTRAL, brightness);
-            leds[LED_WEAPON_C2] = CHSV(HUE_NEUTRAL, SAT_NEUTRAL, brightness);
-            leds[LED_WEAPON_L1] = CHSV(HUE_NEUTRAL, SAT_NEUTRAL, brightness);
-            leds[LED_WEAPON_R1] = CHSV(HUE_NEUTRAL, SAT_NEUTRAL, brightness);
-            leds[LED_WEAPON_L2] = CRGB::Black;
-            leds[LED_WEAPON_R2] = CRGB::Black;
-            leds[LED_WEAPON_L3] = CRGB::Black;
-            leds[LED_WEAPON_R3] = CRGB::Black;
-        }
-        else if (newSpeed < 0 && newSpeed >= -0.333)
-        {
-            leds[LED_WEAPON_C1] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
-            leds[LED_WEAPON_C2] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
-            leds[LED_WEAPON_L1] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
-            leds[LED_WEAPON_R1] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
-            leds[LED_WEAPON_L2] = CRGB::Black;
-            leds[LED_WEAPON_R2] = CRGB::Black;
-            leds[LED_WEAPON_L3] = CRGB::Black;
-            leds[LED_WEAPON_R3] = CRGB::Black;
-        }
-        else if (newSpeed < -0.333 && newSpeed >= -0.666)
-        {
-            leds[LED_WEAPON_C1] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
-            leds[LED_WEAPON_C2] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
-            leds[LED_WEAPON_L1] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
-            leds[LED_WEAPON_R1] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
-            leds[LED_WEAPON_L2] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
-            leds[LED_WEAPON_R2] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
-            leds[LED_WEAPON_L3] = CRGB::Black;
-            leds[LED_WEAPON_R3] = CRGB::Black;
-        }
-        if (newSpeed < -0.666)
-        {
-            leds[LED_WEAPON_C1] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
-            leds[LED_WEAPON_C2] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
-            leds[LED_WEAPON_L1] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
-            leds[LED_WEAPON_R1] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
-            leds[LED_WEAPON_L2] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
-            leds[LED_WEAPON_R2] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
-            leds[LED_WEAPON_L3] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
-            leds[LED_WEAPON_R3] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
-        }
     }
-    int newPowerToWrite = 90 + _centerTrim + int(newSpeed * (float) (90 * WEAPON_POWER_MAX / 100));
+
+
+    int newPowerToWrite = 90 + _centerTrimWeapon + int(newSpeed * (float) (90 * WEAPON_POWER_MAX / 100));
 
     _weaponMotor.write(newPowerToWrite);
     _weaponMotorCopy.write(180 - newPowerToWrite);
@@ -299,9 +375,14 @@ bool IsTimedOut()
 
 void DisplayAnglePoint(float angleToDisplay, CRGB color)
 {
+    if (ledType != 0)
+    {
+        return;
+    }
+
     int angleDisplayIndex = -1;
 
-    while(angleToDisplay > 360 || angleToDisplay < 0)
+    while (angleToDisplay > 360 || angleToDisplay < 0)
     {
         if (angleToDisplay < 0)
         {
@@ -312,7 +393,6 @@ void DisplayAnglePoint(float angleToDisplay, CRGB color)
             angleToDisplay += -360;
         }
     }
-
 
 
     if (angleToDisplay < 15.6)
@@ -429,7 +509,6 @@ void DisplayAnglePoint(float angleToDisplay, CRGB color)
     }
 
 
-
     for (int i = 0; i < 64; i++)
     {
         if (i == angleDisplayIndex)
@@ -488,7 +567,7 @@ void UpdateInputValues()
         _forceShutdownProgress = 0;
     }
 
-    if (!Ps3.data.button.up && !Ps3.data.button.down )
+    if (!Ps3.data.button.up && !Ps3.data.button.down)
     {
         _perfectForwardEngaged = false;
     }
@@ -521,7 +600,7 @@ void UpdateInputValues()
                 Serial.print(anglediff);
 
                 // RPB: angle range is always 0 to 360
-                
+
                 if (anglediff > 3)
                 {
                     Serial.print("correcting towards right:");
@@ -574,15 +653,15 @@ void UpdateInputValues()
                 if (anglediff > 3)
                 {
                     Serial.print("correcting towards right:");
-                    leftMixedValue -= 1* _perfectForwardCorrectionFactor;
-                    rightMixedValue -= 1 ;
+                    leftMixedValue -= 1 * _perfectForwardCorrectionFactor;
+                    rightMixedValue -= 1;
                     // too much to the left, turn right
                 }
                 else if (anglediff < -3)
                 {
                     Serial.print("correcting towards left");
-                    leftMixedValue -= 1 ;
-                    rightMixedValue -= 1* _perfectForwardCorrectionFactor;
+                    leftMixedValue -= 1;
+                    rightMixedValue -= 1 * _perfectForwardCorrectionFactor;
                     //too much to the right, turn left
                 }
                 else
@@ -636,15 +715,15 @@ void UpdateInputValues()
     }
     else
     {
-        if(DO_GAME_DRIVE)
+        if (DO_GAME_DRIVE)
         {
             _shouldShowTargetAngle = false;
-            
+
             float leftMixedValue = 0;
             float rightMixedValue = 0;
-            float rx = (float)Ps3.data.analog.stick.rx / (float)128;
-            float ry = -(float)Ps3.data.analog.stick.ry / (float)128;
-            float ly = -(float)Ps3.data.analog.stick.ly / (float)128;
+            float rx = (float) Ps3.data.analog.stick.rx / (float) 128;
+            float ry = -(float) Ps3.data.analog.stick.ry / (float) 128;
+            float ly = -(float) Ps3.data.analog.stick.ly / (float) 128;
 
             if (rx == 0)
             {
@@ -659,31 +738,31 @@ void UpdateInputValues()
 
                 currentJoystickAngle = angleStick;
 
-                int anglediff = (int) (currentXOrientation - angleStick  + 360) % 360 - 180;
+                int anglediff = (int) (currentXOrientation - angleStick + 360) % 360 - 180;
 
                 Serial.print("targetAngle: ");
                 Serial.print(currentJoystickAngle);
                 Serial.print(", currentAngle: ");
                 Serial.print(currentXOrientation);
-                
+
                 Serial.print("angle diff:");
                 Serial.print(anglediff);
-                
-                float angleDiffSpeedMultiplier = ((float)abs(anglediff)) /180;
+
+                float angleDiffSpeedMultiplier = ((float) abs(anglediff)) / 180;
                 //rpb: angle diff can range from 0 to 180, so divide by 180
-                
+
                 if (anglediff > 3)
                 {
                     Serial.print("correcting towards right:");
-                    leftMixedValue += 0.1+0.5 *angleDiffSpeedMultiplier;
-                    rightMixedValue += -0.1+-0.5 *angleDiffSpeedMultiplier;
+                    leftMixedValue += 0.1 + 0.5 * angleDiffSpeedMultiplier;
+                    rightMixedValue += -0.1 + -0.5 * angleDiffSpeedMultiplier;
                     // too much to the left, turn right
                 }
                 else if (anglediff < -3)
                 {
                     Serial.print("correcting towards left");
-                    leftMixedValue += -0.1+-0.5 *angleDiffSpeedMultiplier;
-                    rightMixedValue += 0.1+0.5 *angleDiffSpeedMultiplier;
+                    leftMixedValue += -0.1 + -0.5 * angleDiffSpeedMultiplier;
+                    rightMixedValue += 0.1 + 0.5 * angleDiffSpeedMultiplier;
                     //too much to the right, turn left
                 }
                 else
@@ -695,11 +774,12 @@ void UpdateInputValues()
                 }
             }
 
-            if(abs(ly) > (0.1))
+            if (abs(ly) > (0.1))
             {
                 leftMixedValue += ly * 0.8;
                 rightMixedValue += ly * 0.8;
             }
+
 
             Serial.println();
 
@@ -728,7 +808,7 @@ void UpdateInputValues()
                 _rightVerticalValue = -(float) Ps3.data.analog.stick.ry / (float) 128;
             }
         }
-        
+
 
     }
 
@@ -835,95 +915,153 @@ void SetDriveMotorSpeed(float newSpeed, bool isLeftMotor, int motorLeds[])
         newSpeed = 0;
     }
 
-    if (!_motorsAreAttached)
+    if (ledType == 0) // 8x8
     {
-        leds[motorLeds[0]] = CRGB::Black;
-        leds[motorLeds[1]] = CRGB::Black;
-        leds[motorLeds[2]] = CHSV(HUE_DISCONNECTED, 255, MAX_BRIGHTNESS);
-        leds[motorLeds[3]] = CRGB::Black;
-        leds[motorLeds[4]] = CRGB::Black;
-    }
-    else
-    {
-        if (!IsTimedOut())
+        if (!_motorsAreAttached)
         {
-            int brightness = GetBrightnessForSpeed(newSpeed);
-
-            if (newSpeed > 0.666)
-            {
-                leds[motorLeds[0]] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
-                leds[motorLeds[1]] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
-                leds[motorLeds[2]] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
-                leds[motorLeds[3]] = CRGB::Black;
-                leds[motorLeds[4]] = CRGB::Black;
-            }
-            else if (newSpeed > 0.333 && newSpeed <= 0.666)
-            {
-                leds[motorLeds[0]] = CRGB::Black;
-                leds[motorLeds[1]] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
-                leds[motorLeds[2]] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
-                leds[motorLeds[3]] = CRGB::Black;
-                leds[motorLeds[4]] = CRGB::Black;
-            }
-            else if (newSpeed > 0 && newSpeed <= 0.333)
-            {
-                leds[motorLeds[0]] = CRGB::Black;
-                leds[motorLeds[1]] = CRGB::Black;
-                leds[motorLeds[2]] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
-                leds[motorLeds[3]] = CRGB::Black;
-                leds[motorLeds[4]] = CRGB::Black;
-            }
-            else if (newSpeed == 0)
-            {
-                leds[motorLeds[0]] = CRGB::Black;
-                leds[motorLeds[1]] = CRGB::Black;
-                leds[motorLeds[2]] = CHSV(HUE_NEUTRAL, SAT_NEUTRAL, STARTING_BRIGHTNESS);
-                leds[motorLeds[3]] = CRGB::Black;
-                leds[motorLeds[4]] = CRGB::Black;
-            }
-            else if (newSpeed >= -0.333 && newSpeed < 0)
-            {
-                leds[motorLeds[0]] = CRGB::Black;
-                leds[motorLeds[1]] = CRGB::Black;
-                leds[motorLeds[2]] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
-                leds[motorLeds[3]] = CRGB::Black;
-                leds[motorLeds[4]] = CRGB::Black;
-            }
-            else if (newSpeed >= -0.666 && newSpeed < -0.333)
-            {
-                leds[motorLeds[0]] = CRGB::Black;
-                leds[motorLeds[1]] = CRGB::Black;
-                leds[motorLeds[2]] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
-                leds[motorLeds[3]] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
-                leds[motorLeds[4]] = CRGB::Black;
-            }
-            else if (newSpeed < -0.666)
-            {
-                leds[motorLeds[0]] = CRGB::Black;
-                leds[motorLeds[1]] = CRGB::Black;
-                leds[motorLeds[2]] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
-                leds[motorLeds[3]] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
-                leds[motorLeds[4]] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
-            }
-        }
-
-        if (_reverseAllDriveMotors)
-        {
-            newSpeed = -newSpeed;
-        }
-
-        if (isLeftMotor)
-        {
-            int newPowerToWrite = 90 + _centerTrim - int(newSpeed * (float) (90 * DRIVE_POWER_MAX / 100));
-            _driveMotorLeft.write(newPowerToWrite);
+            leds[motorLeds[0]] = CRGB::Black;
+            leds[motorLeds[1]] = CRGB::Black;
+            leds[motorLeds[2]] = CHSV(HUE_DISCONNECTED, 255, MAX_BRIGHTNESS);
+            leds[motorLeds[3]] = CRGB::Black;
+            leds[motorLeds[4]] = CRGB::Black;
         }
         else
         {
-            int newPowerToWrite = 90 + _centerTrim - int(newSpeed * (float) (90 * DRIVE_POWER_MAX / 100));
-            _driveMotorRight.write(newPowerToWrite);
+            if (!IsTimedOut())
+            {
+                int brightness = GetBrightnessForSpeed(newSpeed);
+
+                if (newSpeed > 0.666)
+                {
+                    leds[motorLeds[0]] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
+                    leds[motorLeds[1]] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
+                    leds[motorLeds[2]] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
+                    leds[motorLeds[3]] = CRGB::Black;
+                    leds[motorLeds[4]] = CRGB::Black;
+                }
+                else if (newSpeed > 0.333 && newSpeed <= 0.666)
+                {
+                    leds[motorLeds[0]] = CRGB::Black;
+                    leds[motorLeds[1]] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
+                    leds[motorLeds[2]] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
+                    leds[motorLeds[3]] = CRGB::Black;
+                    leds[motorLeds[4]] = CRGB::Black;
+                }
+                else if (newSpeed > 0 && newSpeed <= 0.333)
+                {
+                    leds[motorLeds[0]] = CRGB::Black;
+                    leds[motorLeds[1]] = CRGB::Black;
+                    leds[motorLeds[2]] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
+                    leds[motorLeds[3]] = CRGB::Black;
+                    leds[motorLeds[4]] = CRGB::Black;
+                }
+                else if (newSpeed == 0)
+                {
+                    leds[motorLeds[0]] = CRGB::Black;
+                    leds[motorLeds[1]] = CRGB::Black;
+                    leds[motorLeds[2]] = CHSV(HUE_NEUTRAL, SAT_NEUTRAL, STARTING_BRIGHTNESS);
+                    leds[motorLeds[3]] = CRGB::Black;
+                    leds[motorLeds[4]] = CRGB::Black;
+                }
+                else if (newSpeed >= -0.333 && newSpeed < 0)
+                {
+                    leds[motorLeds[0]] = CRGB::Black;
+                    leds[motorLeds[1]] = CRGB::Black;
+                    leds[motorLeds[2]] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
+                    leds[motorLeds[3]] = CRGB::Black;
+                    leds[motorLeds[4]] = CRGB::Black;
+                }
+                else if (newSpeed >= -0.666 && newSpeed < -0.333)
+                {
+                    leds[motorLeds[0]] = CRGB::Black;
+                    leds[motorLeds[1]] = CRGB::Black;
+                    leds[motorLeds[2]] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
+                    leds[motorLeds[3]] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
+                    leds[motorLeds[4]] = CRGB::Black;
+                }
+                else if (newSpeed < -0.666)
+                {
+                    leds[motorLeds[0]] = CRGB::Black;
+                    leds[motorLeds[1]] = CRGB::Black;
+                    leds[motorLeds[2]] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
+                    leds[motorLeds[3]] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
+                    leds[motorLeds[4]] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
+                }
+            }
         }
     }
+    else if (ledType == 1) //2x2, 0 = main, 1 = right, 2 = left, 3= weapon
+    {
+        int ledNumber = 1;
+        if(isLeftMotor)
+        {
+            ledNumber = 2;
+        }
+        
+        if (!_motorsAreAttached)
+        {
+            leds[ledNumber] = CHSV(HUE_DISCONNECTED, 255, MAX_BRIGHTNESS);
+        }
+        else
+        {
+            if (!IsTimedOut())
+            {
+                int brightness = GetBrightnessForSpeed(newSpeed);
+
+                if (newSpeed > 0.666)
+                {
+                    leds[ledNumber] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
+                }
+                else if (newSpeed > 0.333 && newSpeed <= 0.666)
+                {
+                    leds[ledNumber] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
+                }
+                else if (newSpeed > 0 && newSpeed <= 0.333)
+                {
+                    leds[ledNumber] = CHSV(HUE_FORWARD, SAT_FORWARD, brightness);
+                }
+                else if (newSpeed == 0)
+                {
+                    leds[ledNumber] = CHSV(HUE_NEUTRAL, SAT_NEUTRAL, STARTING_BRIGHTNESS);
+                }
+                else if (newSpeed >= -0.333 && newSpeed < 0)
+                {
+                    leds[ledNumber] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
+                }
+                else if (newSpeed >= -0.666 && newSpeed < -0.333)
+                {
+                    leds[ledNumber] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
+                }
+                else if (newSpeed < -0.666)
+                {
+                    leds[ledNumber] = CHSV(HUE_REVERSE, SAT_REVERSE, brightness);
+                }
+            }
+        }
+    }
+    else if (ledType == 2) // 1x1 single
+    {
+
+    }
+
+
+    if (_reverseAllDriveMotors)
+    {
+        newSpeed = -newSpeed;
+    }
+
+    if (isLeftMotor)
+    {
+        int newPowerToWrite = 90 + _centerTrim - int(newSpeed * (float) (90 * DRIVE_POWER_MAX / 100));
+        _driveMotorLeft.write(newPowerToWrite);
+    }
+    else
+    {
+        int newPowerToWrite = 90 + _centerTrim - int(newSpeed * (float) (90 * DRIVE_POWER_MAX / 100));
+        _driveMotorRight.write(newPowerToWrite);
+    }
 }
+
 
 void Start()
 {
@@ -1082,15 +1220,15 @@ void GetAndPrintOrientation()
     {
         currentXOrientation = event.orientation.x;
     }
-    
+
     currentXOrientation = 360 - event.orientation.x;
 
-    if(_shouldShowTargetAngle)
+    if (_shouldShowTargetAngle)
     {
         DisplayAnglePoint(currentJoystickAngle + currentXOrientation, CRGB::Green);
     }
-    
-    DisplayAnglePoint(180+currentXOrientation, CRGB::White);
+
+    DisplayAnglePoint(180 + currentXOrientation, CRGB::White);
 
 }
 
@@ -1124,51 +1262,66 @@ void OnTimeout()
 void UpdateCenterLEDColors()
 {
     SetCenterLEDs(CRGB::Black);
-
-    if (_useIMU)
+    if (ledType == 0)
     {
-        if (!_isUpsideDown)
+        if (_useIMU)
         {
-            CRGB color = CHSV(HUE_PURPLE, 0, MAX_BRIGHTNESS);
-            leds[27] = color;
-            leds[28] = color;
+
+            if (!_isUpsideDown)
+            {
+                CRGB color = CHSV(HUE_PURPLE, 0, MAX_BRIGHTNESS);
+                leds[27] = color;
+                leds[28] = color;
+            }
+            else
+            {
+                CRGB color = CHSV(HUE_PURPLE, 255, MAX_BRIGHTNESS);
+                leds[27] = color;
+                leds[28] = color;
+            }
+
         }
         else
         {
-            CRGB color = CHSV(HUE_PURPLE, 255, MAX_BRIGHTNESS);
+            CRGB color = CHSV(HUE_RED, 255, MAX_BRIGHTNESS);
             leds[27] = color;
             leds[28] = color;
         }
     }
-    else
+
+    if (ledType == 0)
     {
-        CRGB color = CHSV(HUE_RED, 255, MAX_BRIGHTNESS);
-        leds[27] = color;
-        leds[28] = color;
+        if (_forceShutdownProgress > 0.01f && _forceShutdownProgress < 0.99f && !_forceShutdownTurnedOn)
+        {
+            CRGB color = CHSV(HUE_DISCONNECTED, 255, (float) _forceShutdownProgress * (float) MAX_BRIGHTNESS + 25);
+            leds[3] = color;
+            leds[4] = color;
+
+            if (_forceShutdownProgress > 0.25f)
+            {
+                leds[11] = color;
+                leds[12] = color;
+            }
+
+            if (_forceShutdownProgress > 0.5f)
+            {
+                leds[19] = color;
+                leds[20] = color;
+            }
+
+            if (_forceShutdownProgress > 0.75f)
+            {
+                leds[27] = color;
+                leds[28] = color;
+            }
+        }
     }
-
-    if (_forceShutdownProgress > 0.01f && _forceShutdownProgress < 0.99f && !_forceShutdownTurnedOn)
+    else if (ledType == 1)
     {
-        CRGB color = CHSV(HUE_DISCONNECTED, 255, (float) _forceShutdownProgress * (float) MAX_BRIGHTNESS + 25);
-        leds[3] = color;
-        leds[4] = color;
-
-        if (_forceShutdownProgress > 0.25f)
+        if (_forceShutdownProgress > 0.01f && _forceShutdownProgress < 0.99f && !_forceShutdownTurnedOn)
         {
-            leds[11] = color;
-            leds[12] = color;
-        }
-
-        if (_forceShutdownProgress > 0.5f)
-        {
-            leds[19] = color;
-            leds[20] = color;
-        }
-
-        if (_forceShutdownProgress > 0.75f)
-        {
-            leds[27] = color;
-            leds[28] = color;
+            CRGB color = CHSV(HUE_DISCONNECTED, 255, (float) _forceShutdownProgress * (float) MAX_BRIGHTNESS + 25);
+            leds[0] = color;
         }
     }
 
@@ -1194,8 +1347,28 @@ void UpdateShutdownTimer()
     }
 }
 
+void ReadVoltage()
+{
+    voltageResultRaw = analogRead(PIN_VOLTAGE_CHECK);
+    Serial.println();
+    
+    Serial.print(voltageResultRaw);
+    Serial.print("rawV, ");
+    
+    float voltageReal = 0.00293 * (float)voltageResultRaw + 5.2543;
+    Serial.print(voltageReal);
+    Serial.print("v, (");
+    voltagePerCell = voltageReal/(float)4.0;
+    Serial.print(voltagePerCell);
+    Serial.print("v per cell)");
+    Serial.println("v");
+}
+
 void Update()
 {
+    ReadVoltage();
+    
+    
     for (int i = 0; i < 64; ++i)
     {
         leds[i] = CRGB::Black;
