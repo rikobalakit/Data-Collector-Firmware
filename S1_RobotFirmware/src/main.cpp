@@ -58,6 +58,20 @@
 #define DRIVE_POWER_MAX 100 //Range 0 to 100, 100 being full power
 #define WEAPON_POWER_MAX 100 //Range 0 to 100, 100 being full power
 
+#define BATTERY_STAGE_UNDEFINED -1
+#define BATTERY_STAGE_DEAD 0
+#define BATTERY_STAGE_CUTOFF_WEAPON 1
+#define BATTERY_STAGE_UNDERHALF 2
+#define BATTERY_STAGE_OVERHALF 3
+#define BATTERY_STAGE_FULL 4
+#define BATTERY_STAGE_OVERFULL 5
+
+const float DETHROTTLE_FACTOR = 10;
+const float DETHROTTLE_HARD_MINIMUM = 0.5;
+const bool DETHROTTLE_WEAPON_ON_HARD_TURN = true;
+
+
+
 #define TIME_TO_HOLD_SHUTDOWN_BUTTON_MILLIS 3000
 
 #if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
@@ -102,6 +116,8 @@ int _delayLength = 10;
 ulong _forceShutdownAccumulatedMillis = 0;
 ulong _forceShutdownStartedMillis = 0;
 ulong _lastUpdateMillis = 0;
+ulong _accumulatedTimeSinceBatteryStageSwitched = 0;
+
 
 ulong _timeoutThresholdMillis = 1000;
 ulong _timeoutDeclaredStartedMillis = 0;
@@ -130,16 +146,23 @@ bool _slowOn = false;
 
 // from TranslationManager
 
-const float SLOW_MULTIPLIER = 0.333;
+const float SLOW_MULTIPLIER = 0.5;
 const float TURBO_MULTIPLIER = 1;
-const float DEFAULT_MULTIPLIER = 0.666;
+const float DEFAULT_MULTIPLIER = 0.99;
 
 float _leftMotorThrottle = 0;
 float _rightMotorThrottle = 0;
 float _weaponMotorThrottle = 0;
 
 float voltagePerCell = 0;
-float voltagePerCellMinimum = 3.5;
+const float voltageMinimum = 0; //BS 0
+const float voltageCutoffDrive = 3.2; //BS1
+const float voltageCutoffWeapon = 3.4; //BS2
+const float voltageCutoffHalfway = 3.7; //BS3
+const float voltageCutoffFull = 4.05; //BS4
+const float voltageOverLimit = 4.25; //BS5
+
+int currentBatteryStage = BATTERY_STAGE_UNDEFINED; 
 
 const float _centerTrim = -3;
 const float _centerTrimWeapon = 0;
@@ -154,7 +177,10 @@ float _perfectForwardCorrectionFactor = 0.8f;
 
 bool _shouldShowTargetAngle = false;
 
-bool DO_GAME_DRIVE = true;
+
+bool _videoGameStyleDriveControls = true;
+bool _currentlyDoingVideoGameStyleControlInsteadOfDPadOrTank = false;
+int _videoGameAngleDeltaDegrees = 0;
 
 int currentJoystickAngle = 0;
 
@@ -362,8 +388,8 @@ void SetWeaponMotorSpeed(float newSpeed)
 
     int newPowerToWrite = 90 + _centerTrimWeapon + int(newSpeed * (float) (90 * WEAPON_POWER_MAX / 100));
 
-    _weaponMotor.write(newPowerToWrite);
-    _weaponMotorCopy.write(180 - newPowerToWrite);
+    _weaponMotor.write(180-newPowerToWrite);
+    _weaponMotorCopy.write( newPowerToWrite);
 
 }
 
@@ -536,6 +562,8 @@ void UpdateInputValues()
     Serial.print(" gz: ");
     Serial.print(Ps3.data.sensor.gyroscope.z, DEC);
 */
+    _currentlyDoingVideoGameStyleControlInsteadOfDPadOrTank = false;
+    
     if (
             lastAx == Ps3.data.sensor.accelerometer.x &&
             lastAy == Ps3.data.sensor.accelerometer.y &&
@@ -594,21 +622,21 @@ void UpdateInputValues()
                 Serial.print(", currentAngle: ");
                 Serial.print(currentXOrientation);
 
-                int anglediff = (int) (currentXOrientation - _perfectForwardStartAngle + 180 + 360) % 360 - 180;
+                int angleDelta = (int) (currentXOrientation - _perfectForwardStartAngle + 180 + 360) % 360 - 180;
 
                 Serial.print("angle diff:");
-                Serial.print(anglediff);
+                Serial.print(angleDelta);
 
                 // RPB: angle range is always 0 to 360
 
-                if (anglediff > 3)
+                if (angleDelta > 3)
                 {
                     Serial.print("correcting towards right:");
                     leftMixedValue += 1;
                     rightMixedValue += 1 * _perfectForwardCorrectionFactor;
                     // too much to the left, turn right
                 }
-                else if (anglediff < -3)
+                else if (angleDelta < -3)
                 {
                     Serial.print("correcting towards left");
                     leftMixedValue += 1 * _perfectForwardCorrectionFactor;
@@ -643,21 +671,21 @@ void UpdateInputValues()
                 Serial.print(", currentAngle: ");
                 Serial.print(currentXOrientation);
 
-                int anglediff = (int) (currentXOrientation - _perfectForwardStartAngle + 180 + 360) % 360 - 180;
+                int angleDelta = (int) (currentXOrientation - _perfectForwardStartAngle + 180 + 360) % 360 - 180;
 
                 Serial.print("angle diff:");
-                Serial.print(anglediff);
+                Serial.print(angleDelta);
 
                 // RPB: angle range is always 0 to 360
 
-                if (anglediff > 3)
+                if (angleDelta > 3)
                 {
                     Serial.print("correcting towards right:");
                     leftMixedValue -= 1 * _perfectForwardCorrectionFactor;
                     rightMixedValue -= 1;
                     // too much to the left, turn right
                 }
-                else if (anglediff < -3)
+                else if (angleDelta < -3)
                 {
                     Serial.print("correcting towards left");
                     leftMixedValue -= 1;
@@ -715,8 +743,9 @@ void UpdateInputValues()
     }
     else
     {
-        if (DO_GAME_DRIVE)
+        if (_videoGameStyleDriveControls)
         {
+            _currentlyDoingVideoGameStyleControlInsteadOfDPadOrTank = true;
             _shouldShowTargetAngle = false;
 
             float leftMixedValue = 0;
@@ -738,7 +767,7 @@ void UpdateInputValues()
 
                 currentJoystickAngle = angleStick;
 
-                int anglediff = (int) (currentXOrientation - angleStick + 360) % 360 - 180;
+                _videoGameAngleDeltaDegrees = (int) (currentXOrientation - angleStick + 360) % 360 - 180;
 
                 Serial.print("targetAngle: ");
                 Serial.print(currentJoystickAngle);
@@ -746,23 +775,23 @@ void UpdateInputValues()
                 Serial.print(currentXOrientation);
 
                 Serial.print("angle diff:");
-                Serial.print(anglediff);
+                Serial.print(_videoGameAngleDeltaDegrees);
 
-                float angleDiffSpeedMultiplier = ((float) abs(anglediff)) / 180;
+                float angleDeltaSpeedMultiplier = ((float) abs(_videoGameAngleDeltaDegrees)) / 180;
                 //rpb: angle diff can range from 0 to 180, so divide by 180
 
-                if (anglediff > 3)
+                if (_videoGameAngleDeltaDegrees > 3)
                 {
                     Serial.print("correcting towards right:");
-                    leftMixedValue += 0.1 + 0.5 * angleDiffSpeedMultiplier;
-                    rightMixedValue += -0.1 + -0.5 * angleDiffSpeedMultiplier;
+                    leftMixedValue += 0.1 + 0.5 * angleDeltaSpeedMultiplier;
+                    rightMixedValue += -0.1 + -0.5 * angleDeltaSpeedMultiplier;
                     // too much to the left, turn right
                 }
-                else if (anglediff < -3)
+                else if (_videoGameAngleDeltaDegrees < -3)
                 {
                     Serial.print("correcting towards left");
-                    leftMixedValue += -0.1 + -0.5 * angleDiffSpeedMultiplier;
-                    rightMixedValue += 0.1 + 0.5 * angleDiffSpeedMultiplier;
+                    leftMixedValue += -0.1 + -0.5 * angleDeltaSpeedMultiplier;
+                    rightMixedValue += 0.1 + 0.5 * angleDeltaSpeedMultiplier;
                     //too much to the right, turn left
                 }
                 else
@@ -772,6 +801,10 @@ void UpdateInputValues()
                     rightMixedValue += 0;
                     // perfect
                 }
+            }
+            else
+            {
+                _videoGameAngleDeltaDegrees = 0;
             }
 
             if (abs(ly) > (0.1))
@@ -904,6 +937,18 @@ void UpdateThrottleValues()
             _weaponMotorThrottle = (float) 1 * (_rightTriggerValue);
             // Right trigger is dominant
         }
+    }
+
+
+    if(currentBatteryStage == BATTERY_STAGE_DEAD)
+    {
+        _leftMotorThrottle = 0;
+        _rightMotorThrottle = 0;
+    }
+    
+    if(currentBatteryStage == BATTERY_STAGE_DEAD || currentBatteryStage == BATTERY_STAGE_CUTOFF_WEAPON)
+    {
+        _weaponMotorThrottle = 0;
     }
 }
 
@@ -1087,10 +1132,20 @@ void Start()
 
     FastLED.addLeds<NEOPIXEL, PIN_NUM_NEOPIXEL_OUTPUT>(leds, TOTAL_LED);
 
-    SetCenterLEDs(CHSV(HUE_PURPLE, 255, MAX_BRIGHTNESS));
-
     FastLED.show();
-    delay(500);
+    
+    for (int i = 0; i < HUE_PURPLE; ++i)
+    {
+        CRGB color = CHSV(i, 255, MAX_BRIGHTNESS);
+        
+        leds[0] = color;
+        leds[1] = color;
+        leds[2] = color;
+        leds[3] = color;
+
+        FastLED.show();
+        delay(2);
+    }
 
     if (_useIMU)
     {
@@ -1102,23 +1157,45 @@ void Start()
     _weaponMotor.setPeriodHertz(50);
     _weaponMotorCopy.setPeriodHertz(50);
 
-
-    for (int i = 0; i < 3; ++i)
-    {
-        SetCenterLEDs(CHSV(HUE_NEUTRAL, 0, MAX_BRIGHTNESS));
-        FastLED.show();
-        delay(166);
-
-        SetCenterLEDs(CRGB::Black);
-        FastLED.show();
-        delay(166);
-    }
-
+    delay(50);
+    
     SetWeaponMotorSpeed(0);
     SetDriveMotorSpeed(0, true, _driveLeftLEDs);
     SetDriveMotorSpeed(0, false, _driveRightLEDs);
     FastLED.show();
 
+}
+
+float AttenuateWeaponThrottleBasedOnAngleDelta(float inputTargetWeaponSpeed)
+{
+
+    if (!DETHROTTLE_WEAPON_ON_HARD_TURN)
+    {
+        return inputTargetWeaponSpeed;
+    }
+    float dethrottleMultiplier = 1;
+    
+    
+    if(_currentlyDoingVideoGameStyleControlInsteadOfDPadOrTank)
+    {
+        dethrottleMultiplier = 1 - abs((float)_videoGameAngleDeltaDegrees / (float)180 * (float)DETHROTTLE_FACTOR);
+        
+        if(dethrottleMultiplier > 1)
+        {
+            dethrottleMultiplier = 1;
+        }
+        
+        if(dethrottleMultiplier < DETHROTTLE_HARD_MINIMUM)
+        {
+            dethrottleMultiplier = DETHROTTLE_HARD_MINIMUM;
+        }
+    }
+    else
+    {
+        dethrottleMultiplier = 1;
+    }
+    
+    return inputTargetWeaponSpeed * dethrottleMultiplier;
 }
 
 void UpdateESCsToTargetValues()
@@ -1180,7 +1257,7 @@ void UpdateESCsToTargetValues()
     SetDriveMotorSpeed(_currentRightMotorSpeed, false, _driveRightLEDs);
 
 
-    _currentWeaponMotorSpeed = _targetWeaponMotorSpeed;
+    _currentWeaponMotorSpeed = AttenuateWeaponThrottleBasedOnAngleDelta(_targetWeaponMotorSpeed);
     SetWeaponMotorSpeed(_currentWeaponMotorSpeed);
 }
 
@@ -1251,7 +1328,7 @@ void OnTimeout()
 
     _timeoutDeclaredStartedMillis = _lastUpdateMillis + _timeoutThresholdMillis;
 
-    if (_timeoutDeclaredStartedMillis + 15000 < millis())
+    if (_timeoutDeclaredStartedMillis + 5000 < millis())
     {
         ESP.restart();
     }
@@ -1323,6 +1400,76 @@ void UpdateCenterLEDColors()
             CRGB color = CHSV(HUE_DISCONNECTED, 255, (float) _forceShutdownProgress * (float) MAX_BRIGHTNESS + 25);
             leds[0] = color;
         }
+        else
+        {
+            if(currentBatteryStage == BATTERY_STAGE_DEAD)
+            {
+                if(millis() % 666 < 333)
+                {
+                    CRGB color = CHSV(HUE_RED, 255, MAX_BRIGHTNESS);
+                    leds[0] = color;
+                }
+                else
+                {
+                    CRGB color = CHSV(HUE_RED, 255, 0);
+                    leds[0] = color;
+                }
+            }
+            else if(currentBatteryStage == BATTERY_STAGE_CUTOFF_WEAPON)
+            {
+                CRGB color = CHSV(HUE_RED, 255, MAX_BRIGHTNESS);
+                leds[0] = color;
+            }
+            else if(currentBatteryStage == BATTERY_STAGE_UNDERHALF)
+            {
+                CRGB color = CHSV(HUE_YELLOW, 255, MAX_BRIGHTNESS);
+                leds[0] = color;
+            }
+            else if(currentBatteryStage == BATTERY_STAGE_OVERHALF)
+            {
+                CRGB color = CHSV(HUE_GREEN, 255, MAX_BRIGHTNESS);
+                leds[0] = color;
+            }
+            else if(currentBatteryStage == BATTERY_STAGE_FULL)
+            {
+                if(millis() % 400 < 200)
+                {
+                    CRGB color = CHSV(HUE_GREEN, 255, MAX_BRIGHTNESS);
+                    leds[0] = color;
+                }
+                else
+                {
+                    CRGB color = CHSV(HUE_GREEN, 120, 25);
+                    leds[0] = color;
+                }
+            }
+            else if (currentBatteryStage == BATTERY_STAGE_OVERFULL)
+            {
+                if(millis() % 200 < 100)
+                {
+                    CRGB color = CHSV(HUE_RED, 255, MAX_BRIGHTNESS);
+                    leds[0] = color;
+                }
+                else
+                {
+                    CRGB color = CHSV(HUE_RED, 255, 0);
+                    leds[0] = color;
+                }
+            }
+            else if (currentBatteryStage == BATTERY_STAGE_UNDEFINED)
+            {
+                CRGB color = CHSV(HUE_RED, 255, 0);
+                leds[0] = color;
+            }
+        }
+
+
+        //const float voltageCutoffDrive = 3.2;
+        //const float voltageCutoffWeapon = 3.4;
+        //const float voltageCutoffHalfway = 3.8;
+        //const float voltageOverLimit = 4.25;
+        
+
     }
 
     if (IsTimedOut() && (millis() - _timeoutThresholdMillis) % 1000 < 500)
@@ -1355,13 +1502,60 @@ void ReadVoltage()
     Serial.print(voltageResultRaw);
     Serial.print("rawV, ");
     
-    float voltageReal = 0.00293 * (float)voltageResultRaw + 5.2543;
+    float voltageReal = 0.00353 * (float)voltageResultRaw + 3.88894;
     Serial.print(voltageReal);
     Serial.print("v, (");
     voltagePerCell = voltageReal/(float)4.0;
     Serial.print(voltagePerCell);
     Serial.print("v per cell)");
     Serial.println("v");
+
+    int possibleNewBatteryStage = 0;
+    
+    if(voltagePerCell < voltageCutoffDrive)
+    {
+        possibleNewBatteryStage = BATTERY_STAGE_DEAD;
+    }
+    else if(voltagePerCell >= voltageCutoffDrive && voltagePerCell < voltageCutoffWeapon)
+    {
+        possibleNewBatteryStage = BATTERY_STAGE_CUTOFF_WEAPON;
+    }
+    else if(voltagePerCell >= voltageCutoffWeapon && voltagePerCell < voltageCutoffHalfway)
+    {
+        possibleNewBatteryStage = BATTERY_STAGE_UNDERHALF;
+    }
+    else if(voltagePerCell >= voltageCutoffHalfway && voltagePerCell < voltageCutoffFull)
+    {
+        possibleNewBatteryStage = BATTERY_STAGE_OVERHALF;
+    }
+    else if(voltagePerCell >= voltageCutoffFull && voltagePerCell < voltageOverLimit)
+    {
+        possibleNewBatteryStage = BATTERY_STAGE_FULL;
+    }
+    else
+    {
+        possibleNewBatteryStage = BATTERY_STAGE_OVERFULL;
+    }
+
+    if(currentBatteryStage == BATTERY_STAGE_UNDEFINED)
+    {
+        currentBatteryStage = possibleNewBatteryStage;
+    }
+    
+    if(possibleNewBatteryStage != currentBatteryStage)
+    {
+        _accumulatedTimeSinceBatteryStageSwitched += _delayLength;
+    }
+    else
+    {
+        _accumulatedTimeSinceBatteryStageSwitched = 0;
+    }
+    
+    if(_accumulatedTimeSinceBatteryStageSwitched > 1000)
+    {
+        currentBatteryStage = possibleNewBatteryStage;
+        _accumulatedTimeSinceBatteryStageSwitched = 0;
+    }
 }
 
 void Update()
