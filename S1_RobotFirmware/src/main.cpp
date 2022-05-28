@@ -470,6 +470,7 @@ void LogVoltage()
 
 void InitializeController()
 {
+    // if you figure out how to cheese this to interfere with my controls, you are both smart and an asshole.
     Ps3.begin("00:02:72:3F:5F:02");
     Ps3.getAddress();
 }
