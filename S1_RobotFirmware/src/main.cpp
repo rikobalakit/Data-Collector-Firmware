@@ -54,8 +54,7 @@
 #define UPDATE_STEP_LENGTH_MILLIS 10
 
 // Orientation Sensor
-//VARIABLES I CANT RENAME!
-bool _useIMU = true;
+//VARIABLES I CANT RENAME!??
 Adafruit_BNO055 bno = Adafruit_BNO055(55);
 int val;    // variable to read the value from the analog pin. can't be renamed because dumb.
 sensors_event_t event; //I dont think this can be renamed either
@@ -63,6 +62,7 @@ int _analogPinValue = 0; // Don't want to rename or get rid of
 float _currentXOrientation = 0;
 bool _isUpsideDown = false;
 float _currentXOrientationOffset = 0;
+bool _useIMU = true;
 uint8_t overallSystem, gyro, accel, _magnetometerCalibrationLevel;
 
 // Controller Button Readings
@@ -97,18 +97,6 @@ int _controllerLastGz = 0;
 
 // LED
 #define TOTAL_LED 64
-
-#define LED_WEAPON_R3 35
-#define LED_WEAPON_R2 43
-#define LED_WEAPON_R1 51
-#define LED_WEAPON_R1 51
-#define LED_WEAPON_R1 51
-#define LED_WEAPON_C1 59
-#define LED_WEAPON_C2 60
-#define LED_WEAPON_L1 52
-#define LED_WEAPON_L2 44
-#define LED_WEAPON_L3 36
-
 #define MAX_BRIGHTNESS 80
 
 #define HUE_BLUE 171
@@ -130,7 +118,6 @@ int _controllerLastGz = 0;
 CRGB leds[TOTAL_LED];
 int _driveLeftLEDs[5] = {39, 31, 23, 15, 7};
 int _driveRightLEDs[5] = {32, 24, 16, 8, 0};
-bool _shouldShowTargetAngle = false;
 
 // ESC Declarations and true values
 
@@ -201,11 +188,11 @@ ulong _lastControllerAccelerometerChangedTime = 0;
 ulong _controllerTimeoutDeclaredStartedMillis = 0;
 
 // Battery Status
-#define voltageCutoffDrive  3.2 //BS1
-#define voltageCutoffWeapon  3.4 //BS2
-#define voltageCutoffHalfway  3.7 //BS3
-#define voltageCutoffFull  4.05 //BS4
-#define voltageOverLimit  4.25 //BS5
+#define VOLTAGE_CUTOFF_EVERYTHING  3.2 //BS1
+#define VOLTAGE_CUTOFF_WEAPON  3.4 //BS2
+#define VOLTAGE_CUTOFF_HALFWAY  3.7 //BS3
+#define VOLTAGE_CUTOFF_FULL  4.05 //BS4
+#define VOLTAGE_CUTOFF_OVERLIMIT  4.25 //BS5
 
 #define BATTERY_STAGE_UNDEFINED -1
 #define BATTERY_STAGE_DEAD 0
@@ -217,9 +204,11 @@ ulong _controllerTimeoutDeclaredStartedMillis = 0;
 
 int _currentBatteryStage = BATTERY_STAGE_UNDEFINED;
 ulong _accumulatedTimeSinceBatteryStageSwitched = 0;
-int voltageResultRawValue = 0;
+int _voltageResultRawValue = 0;
 float _calculatedVoltageVolts;
 float _calculatedVoltagePerCell = 0;
+
+// please dont make fun of my lack of header file
 
 void Start();
 
@@ -693,7 +682,7 @@ void LogVoltage()
     }
 
     Serial.println();
-    Serial.print(voltageResultRawValue);
+    Serial.print(_voltageResultRawValue);
     Serial.print("rawV, ");
     Serial.print(_calculatedVoltageVolts);
     Serial.print("v, (");
@@ -744,8 +733,9 @@ void ReadOrientation()
 
 void ReadVoltage()
 {
-    voltageResultRawValue = analogRead(PIN_VOLTAGE_CHECK);
-    _calculatedVoltageVolts = 0.00353 * (float) voltageResultRawValue + 3.88894;
+    _voltageResultRawValue = analogRead(PIN_VOLTAGE_CHECK);
+    _calculatedVoltageVolts = 0.00353 * (float) _voltageResultRawValue + 3.88894; // this is so wacky, why isn't it linear?
+    //only accurate between 12.0v and 16.8v, gets super wacky below that.
     _calculatedVoltagePerCell = _calculatedVoltageVolts / (float) 4.0;
 
     LogVoltage();
@@ -808,7 +798,7 @@ void InterpretOrientation()
     }
     else
     {
-        _currentXOrientationOffset = 120;
+        _currentXOrientationOffset = 120; // I really hope this behavior is the same with all my mobos...
     }
 
     _currentXOrientation += _currentXOrientationOffset;
@@ -823,23 +813,23 @@ void InterpretVoltage()
 {
     int possibleNewBatteryStage = 0;
 
-    if (_calculatedVoltagePerCell < voltageCutoffDrive)
+    if (_calculatedVoltagePerCell < VOLTAGE_CUTOFF_EVERYTHING)
     {
         possibleNewBatteryStage = BATTERY_STAGE_DEAD;
     }
-    else if (_calculatedVoltagePerCell >= voltageCutoffDrive && _calculatedVoltagePerCell < voltageCutoffWeapon)
+    else if (_calculatedVoltagePerCell >= VOLTAGE_CUTOFF_EVERYTHING && _calculatedVoltagePerCell < VOLTAGE_CUTOFF_WEAPON)
     {
         possibleNewBatteryStage = BATTERY_STAGE_CUTOFF_WEAPON;
     }
-    else if (_calculatedVoltagePerCell >= voltageCutoffWeapon && _calculatedVoltagePerCell < voltageCutoffHalfway)
+    else if (_calculatedVoltagePerCell >= VOLTAGE_CUTOFF_WEAPON && _calculatedVoltagePerCell < VOLTAGE_CUTOFF_HALFWAY)
     {
         possibleNewBatteryStage = BATTERY_STAGE_UNDERHALF;
     }
-    else if (_calculatedVoltagePerCell >= voltageCutoffHalfway && _calculatedVoltagePerCell < voltageCutoffFull)
+    else if (_calculatedVoltagePerCell >= VOLTAGE_CUTOFF_HALFWAY && _calculatedVoltagePerCell < VOLTAGE_CUTOFF_FULL)
     {
         possibleNewBatteryStage = BATTERY_STAGE_OVERHALF;
     }
-    else if (_calculatedVoltagePerCell >= voltageCutoffFull && _calculatedVoltagePerCell < voltageOverLimit)
+    else if (_calculatedVoltagePerCell >= VOLTAGE_CUTOFF_FULL && _calculatedVoltagePerCell < VOLTAGE_CUTOFF_OVERLIMIT)
     {
         possibleNewBatteryStage = BATTERY_STAGE_FULL;
     }
