@@ -1,4 +1,14 @@
-﻿#include <Arduino.h>
+﻿/// Hiiiiii, this is Data Collector's firmware!
+/// I am trying to clean it up and reorganize the project
+/// But it is pretty messy
+/// As I work on it more, I'll try to flesh out the self-documentation of it.
+/// Also, I'm not too familiar with Platformio's methods of including files for build
+/// and header files weird me out because I'm so used to C#
+/// I'm a bit anxious this code makes me look like an amateur :sweat-smile-emoji:
+/// but anyway, here it is
+/// - Pearl Grey, benevolent dictator of Grey Skies Automation
+
+#include <Arduino.h>
 #include "../lib/FastLED-3.4.0/src/FastLED.h"
 #include "../lib/ESP32Servo-0.10.0/src/ESP32Servo.h"
 #include "../lib/ArduinoJson-v6.19.1.h"
@@ -9,6 +19,10 @@
 #include "../lib/Adafruit_BNO055/Adafruit_BNO055.h"
 #include "../lib/Adafruit_BNO055/utility/imumaths.h"
 
+#if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
+#error Bluetooth is not enabled! Please run `make menuconfig` to and enable it
+#endif
+
 // Debug Values
 
 #define LOG_CONTROLLER_INPUT false
@@ -16,11 +30,8 @@
 #define LOG_ORIENTATION true
 #define LOG_VOLTAGE false
 #define LOG_CONTROLLER_CONNECTED false
-#define REBOOT_ON_TIMEOUT false
+#define EVENT_MODE false
 
-#if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
-#error Bluetooth is not enabled! Please run `make menuconfig` to and enable it
-#endif
 
 // System values
 
@@ -228,8 +239,6 @@ void ReadVoltage();
 
 void ReadOrientation();
 
-void DisplayAnglePoint(float angleToDisplay, CRGB color);
-
 void SetCenterLEDs(CRGB color);
 
 void UpdateCenterLEDColors();
@@ -338,7 +347,7 @@ void OnControllerDataTimedOut()
     _controllerTimeoutDeclaredStartedMillis =
             _lastControllerAccelerometerChangedTime + CONTROLLER_TIMEOUT_THRESHOLD_MILLIS;
 
-    if (_controllerTimeoutDeclaredStartedMillis + 5000 < millis() && REBOOT_ON_TIMEOUT)
+    if (_controllerTimeoutDeclaredStartedMillis + 5000 < millis() && EVENT_MODE)
     {
         ESP.restart();
     }
@@ -808,13 +817,6 @@ void InterpretOrientation()
     {
         _currentXOrientation -= 360;
     }
-
-    if (_shouldShowTargetAngle)
-    {
-        DisplayAnglePoint(_currentRightJoystickAngle + _currentXOrientation, CRGB::Green);
-    }
-
-    DisplayAnglePoint(180 + _currentXOrientation, CRGB::White);
 }
 
 void InterpretVoltage()
@@ -1303,7 +1305,7 @@ void UpdateDriveTargetSignalValues()
     _worldLeftMotorThrottledNormalizedSpeed = _worldLeftMotorUnthrottledNormalizedSpeed * throttleMultiplier;
     _worldRightMotorThrottledNormalizedSpeed = _worldRightMotorUnthrottledNormalizedSpeed * throttleMultiplier;
 
-    if (_currentBatteryStage == BATTERY_STAGE_DEAD)
+    if (_currentBatteryStage == BATTERY_STAGE_DEAD && EVENT_MODE)
     {
         _worldLeftMotorThrottledNormalizedSpeed = 0;
         _worldRightMotorThrottledNormalizedSpeed = 0;
