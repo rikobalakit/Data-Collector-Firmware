@@ -137,6 +137,8 @@ void InitializeLEDs()
     delay(10);
     FastLED.addLeds<NEOPIXEL, PIN_NUM_NEOPIXEL_OUTPUT>(leds, TOTAL_LED);
     FastLED.show();
+    
+    // TODO: add properties for each LED instead of just the index being vaguely referenced
 }
 
 void BootAnimation()
@@ -688,16 +690,16 @@ void InterpretDPadInputToDrive()
 
     if (!_controllerDirectionUpPressed && !_controllerDirectionDownPressed)
     {
-        _perfectForwardEngaged = false;
+        _linearDirectionStabilizationEnabled = false;
     }
 
     if (_controllerDirectionUpPressed)
     {
 
 
-        if (!_perfectForwardEngaged)
+        if (!_linearDirectionStabilizationEnabled)
         {
-            _perfectForwardEngaged = true;
+            _linearDirectionStabilizationEnabled = true;
             _perfectForwardStartAngle = _currentXOrientation;
         }
         else
@@ -744,9 +746,9 @@ void InterpretDPadInputToDrive()
     if (_controllerDirectionDownPressed)
     {
 
-        if (!_perfectForwardEngaged)
+        if (!_linearDirectionStabilizationEnabled)
         {
-            _perfectForwardEngaged = true;
+            _linearDirectionStabilizationEnabled = true;
             _perfectForwardStartAngle = _currentXOrientation;
         }
         else
@@ -791,14 +793,16 @@ void InterpretDPadInputToDrive()
 
     if (_controllerDirectionLeftPressed)
     {
-        _perfectForwardEngaged = false;
+        // TODO: add weapon throttle attentuation
+        _linearDirectionStabilizationEnabled = false;
         leftMixedValue -= 1;
         rightMixedValue += 1;
     }
 
     if (_controllerDirectionRightPressed)
     {
-        _perfectForwardEngaged = false;
+        // TODO: add weapon throttle attentuation
+        _linearDirectionStabilizationEnabled = false;
         leftMixedValue += 1;
         rightMixedValue -= 1;
     }
@@ -938,6 +942,9 @@ void InterpretAnalogSticksAsTankDrive()
 
 void InterpretTriggersForWeaponMotorControl()
 {
+    // TODO-RPB: Inversion-sensitive weapon controls requires an inversion smoothing function
+    // and careful prep of all motors and ESCs to be in the same direction
+    
     if (_controllerL2 < ANALOG_CONTROLLER_CLAMP_TO_ZERO)
     {
         _leftTriggerNormalizedValue = 0;
@@ -1007,6 +1014,8 @@ void InterpretControllerInput()
 
 void InitializePWMTimers()
 {
+    // TODO: I think im doing this wrong...
+    
     ESP32PWM::allocateTimer(0);
     ESP32PWM::allocateTimer(1);
     ESP32PWM::allocateTimer(2);
@@ -1193,7 +1202,7 @@ void SetDriveMotorSpeed(float newSpeed, bool isLeftMotor, int motorLeds[])
 
 float AttenuateWeaponThrottleBasedOnAngleDelta(float inputTargetWeaponSpeed)
 {
-
+    // TODO: Need a way to detect a vert weapon is on-board. No need to do this for horizontal spinners.
     if (!DETHROTTLE_WEAPON_ON_HARD_TURN)
     {
         return inputTargetWeaponSpeed;

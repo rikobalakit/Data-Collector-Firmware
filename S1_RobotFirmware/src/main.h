@@ -166,7 +166,7 @@ float _currentWeaponMotorNormalizedSpeed = 0;
 #define DRIVE_PERFECT_FORWARD_CORRECTION_FACTOR 0.8
 
 bool _reverseAllDriveMotors = true; // RPB: This is the case of like if we have a gear
-bool _perfectForwardEngaged = false;
+bool _linearDirectionStabilizationEnabled = false;
 float _perfectForwardStartAngle = 0;
 bool _videoGameStyleDriveControls = true;
 bool _currentlyDoingVideoGameStyleControlInsteadOfDPadOrTank = false;
