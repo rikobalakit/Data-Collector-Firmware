@@ -233,6 +233,8 @@ int GetBrightnessForSpeed(float speed);
 
 void OnForceShutDown(ulong shutdownEventReasonStartTime);
 
+void ReadControllerInput();
+
 void OnControllerDataTimedOut();
 
 void UpdateShutdownTimer();

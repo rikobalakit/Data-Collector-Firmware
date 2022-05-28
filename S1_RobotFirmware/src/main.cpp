@@ -10,6 +10,71 @@
 
 #include "main.h"
 
+#pragma region Lifecycle
+
+void Start()
+{
+    InitializeSerialCommunication();
+    InitializeLEDs();
+    InitializeController();
+    InitializePWMTimers();
+    CheckAndInitializeOrientationSensor();
+    InitializeMotorSpeeds();
+    BootAnimation();
+}
+
+void Update()
+{
+    ReadControllerInput();
+    ReadVoltage();
+    ReadOrientation();
+
+    InterpretOrientation();
+    InterpretVoltage();
+    InterpretControllerInput();
+
+    UpdateTargetSignalValues();
+
+    if (_forceShutdownTurnedOn)
+    {
+        OnForceShutDown(_forceShutdownStartedMillis);
+    }
+    else
+    {
+        if (!IsControllerDataTimedOut()) // Means we got fresh data
+        {
+            if (!_motorsAreAttached)
+            {
+                AttachMotors(true);
+            }
+
+            UpdateESCsToTargetValues();
+        }
+        else// we timed out...
+        {
+            OnControllerDataTimedOut();
+        }
+    }
+
+    UpdateShutdownTimer();
+    UpdateAllLEDs();
+}// lol unity style
+
+void setup()
+{
+    Start();
+}
+
+void loop()
+{
+    Update();
+    FastLED.show();
+    delay(UPDATE_STEP_LENGTH_MILLIS);
+}
+
+#pragma endregion
+
+
 #pragma region System Control and Safeguards
 
 void InitializeSerialCommunication()
@@ -1168,68 +1233,5 @@ void SetWeaponMotorSpeed(float newSpeed)
 
 #pragma endregion
 
-#pragma region Lifecycle
-
-void Start()
-{
-    InitializeSerialCommunication();
-    InitializeLEDs();
-    InitializeController();
-    InitializePWMTimers();
-    CheckAndInitializeOrientationSensor();
-    InitializeMotorSpeeds();
-    BootAnimation();
-}
-
-void Update()
-{
-    ReadControllerInput();
-    ReadVoltage();
-    ReadOrientation();
-
-    InterpretOrientation();
-    InterpretVoltage();
-    InterpretControllerInput();
-
-    UpdateTargetSignalValues();
-
-    if (_forceShutdownTurnedOn)
-    {
-        OnForceShutDown(_forceShutdownStartedMillis);
-    }
-    else
-    {
-        if (!IsControllerDataTimedOut()) // Means we got fresh data
-        {
-            if (!_motorsAreAttached)
-            {
-                AttachMotors(true);
-            }
-
-            UpdateESCsToTargetValues();
-        }
-        else// we timed out...
-        {
-            OnControllerDataTimedOut();
-        }
-    }
-
-    UpdateShutdownTimer();
-    UpdateAllLEDs();
-}// lol unity style
-
-void setup()
-{
-    Start();
-}
-
-void loop()
-{
-    Update();
-    FastLED.show();
-    delay(UPDATE_STEP_LENGTH_MILLIS);
-}
-
-#pragma endregion
 
 
