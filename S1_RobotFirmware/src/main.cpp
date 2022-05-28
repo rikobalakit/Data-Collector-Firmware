@@ -509,6 +509,7 @@ void ReadVoltage()
 {
     _voltageResultRawValue = analogRead(PIN_VOLTAGE_CHECK);
     _calculatedVoltageVolts = 0.00353 * (float) _voltageResultRawValue + 3.88894; // this is so wacky, why isn't it linear?
+    //i hope this stays accurate between different copies/spares
     //only accurate between 12.0v and 16.8v, gets super wacky below that.
     _calculatedVoltagePerCell = _calculatedVoltageVolts / (float) 4.0;
 
