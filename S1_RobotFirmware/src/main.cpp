@@ -276,7 +276,6 @@ void SetCenterLEDs(CRGB color)
 void UpdateCenterLEDColors()
 {
     SetCenterLEDs(CRGB::Black);
-
     if (_forceShutdownProgress > 0.01f && _forceShutdownProgress < 0.99f && !_forceShutdownTurnedOn)
     {
         CRGB color = CHSV(HUE_DISCONNECTED, 255, (float) _forceShutdownProgress * (float) MAX_BRIGHTNESS + 25);
@@ -440,8 +439,37 @@ void LogOrientation()
     Serial.print("_magnetometerCalibrationLevel: ");
     Serial.print(_magnetometerCalibrationLevel, 4);
 
+    Serial.print("isFullyCalibrated: ");
+    Serial.print(bno.isFullyCalibrated());
+
+    //event.gyro.heading;
+    //    event.orientation.x;
+    
     Serial.print("\t   X: ");
     Serial.print(_currentXOrientation, 4);
+
+    Serial.print("\t   event.gyro.roll: ");
+    Serial.print((float)event.gyro.roll, 4);
+
+    Serial.print("\t   event.gyro.pitch: ");
+    Serial.print((float)event.gyro.pitch, 4);
+
+    Serial.print("\t   event.gyro.heading: ");
+    Serial.print((float)event.gyro.heading, 4);
+
+    Serial.print("\t   event.orientation.x: ");
+    Serial.print((float)event.orientation.x, 4);
+    
+    /*
+    Serial.print("\t   XOFF: ");
+    Serial.print(_currentXOrientationOffset, 4);
+
+    Serial.print("\t   XDELTA: ");
+    Serial.print((float)_eventOrientationXDelta, 4);
+
+    Serial.print("\t   UPSIDEDOWN?: ");
+    Serial.print(_isUpsideDown);
+     */
 
     Serial.print("\t   XRAW: ");
     Serial.print(event.orientation.x, 4);
@@ -479,7 +507,8 @@ void InitializeController()
 
 void CheckAndInitializeOrientationSensor()
 {
-    if (!bno.begin())
+   
+    if (!bno.begin(bno.OPERATION_MODE_IMUPLUS))
     {
         /* There was a problem detecting the BNO055 ... check your connections */
         Serial.print("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
@@ -491,6 +520,7 @@ void CheckAndInitializeOrientationSensor()
     if (_useIMU)
     {
         bno.setExtCrystalUse(true);
+        
     }
 }
 
@@ -550,8 +580,61 @@ void ReadControllerInput()
 
 #pragma region Input Interpretation
 
+void AttemptToRecalibrateIfSuddenChangeDetected()
+{
+    if(_previousEventOrientationX == -1)
+    {
+        _previousEventOrientationX = _currentXOrientation;
+    }
+
+
+    _eventOrientationXDelta =  ((int) (_currentXOrientation - _previousEventOrientationX + 180 + 360)) % 360 - 180;
+
+    if(abs(_eventOrientationXDelta)  > 45 && _currentXOrientationOffset == 0 && _magnetometerCalibrationLevel > 2)
+    {
+        _currentXOrientationOffset = -_eventOrientationXDelta;
+    }
+
+    _previousEventOrientationX = _currentXOrientation;
+}
+
+void InterpretRollForRumble()
+{
+    // heading can be between -180 to 180
+    //stable heading should be between -180 to -170 and -10 to 10 and 170 to 180.
+    
+    float rollReadingAbsolute = abs(event.gyro.heading);
+    float differenceFrom90 = abs(90-rollReadingAbsolute);
+
+    Serial.print("\t   rollDelta: ");
+    Serial.print(differenceFrom90, 4);
+
+    if(differenceFrom90 < (90-GYRO_LIFT_ANGLE_TOLERANCE))
+    {
+        float normalizedStrengthOfRollover = ((90-GYRO_LIFT_ANGLE_TOLERANCE)-differenceFrom90)/(90-GYRO_LIFT_ANGLE_TOLERANCE);
+        Serial.print("currently rolling over: ");
+        Serial.print(normalizedStrengthOfRollover, 4);
+        if(ps3IsConnected())
+        {
+            Ps3.setRumble(normalizedStrengthOfRollover*50+50, 500);
+        }
+        
+
+    }
+    else
+    {
+        // not rolling over
+        if(ps3IsConnected())
+        {
+            Ps3.setRumble(0, 500);
+        }
+    }
+}
+
 void InterpretOrientation()
 {
+  
+    
     _currentXOrientation = 360 - event.orientation.x;
 
     if (event.orientation.z > 90 || event.orientation.z < -90)
@@ -569,21 +652,15 @@ void InterpretOrientation()
         _currentXOrientation -= 360;
     }
 
-    if (_magnetometerCalibrationLevel == 0 || _magnetometerCalibrationLevel == 1)
-    {
-        _currentXOrientationOffset = 0;
-    }
-    else
-    {
-        _currentXOrientationOffset = 120; // I really hope this behavior is the same with all my mobos...
-    }
-
     _currentXOrientation += _currentXOrientationOffset;
 
     if (_currentXOrientation > 360)
     {
         _currentXOrientation -= 360;
     }
+   
+    InterpretRollForRumble();
+    
 }
 
 void InterpretVoltage()
@@ -720,13 +797,13 @@ void InterpretDPadInputToDrive()
             {
                 Serial.print("correcting towards right:");
                 leftMixedValue += 1;
-                rightMixedValue += 1 * DRIVE_PERFECT_FORWARD_CORRECTION_FACTOR;
+                rightMixedValue += 1 * (1-DRIVE_PERFECT_FORWARD_CORRECTION_FACTOR);
                 // too much to the left, turn right
             }
             else if (angleDelta < -3)
             {
                 Serial.print("correcting towards left");
-                leftMixedValue += 1 * DRIVE_PERFECT_FORWARD_CORRECTION_FACTOR;
+                leftMixedValue += 1 * (1-DRIVE_PERFECT_FORWARD_CORRECTION_FACTOR);
                 rightMixedValue += 1;
                 //too much to the right, turn left
             }
@@ -768,7 +845,7 @@ void InterpretDPadInputToDrive()
             if (angleDelta > 3)
             {
                 Serial.print("correcting towards right:");
-                leftMixedValue -= 1 * DRIVE_PERFECT_FORWARD_CORRECTION_FACTOR;
+                leftMixedValue -= 1 * (1-DRIVE_PERFECT_FORWARD_CORRECTION_FACTOR);
                 rightMixedValue -= 1;
                 // too much to the left, turn right
             }
@@ -776,7 +853,7 @@ void InterpretDPadInputToDrive()
             {
                 Serial.print("correcting towards left");
                 leftMixedValue -= 1;
-                rightMixedValue -= 1 * DRIVE_PERFECT_FORWARD_CORRECTION_FACTOR;
+                rightMixedValue -= 1 * (1-DRIVE_PERFECT_FORWARD_CORRECTION_FACTOR);
                 //too much to the right, turn left
             }
             else
@@ -877,18 +954,18 @@ void InterpretAnalogSticksAsVideoGameDrive()
         float angleDeltaSpeedMultiplier = ((float) abs(_videoGameAngleDeltaDegrees)) / 180;
         //rpb: angle diff can range from 0 to 180, so divide by 180
 
-        if (_videoGameAngleDeltaDegrees > 3)
+        if (_videoGameAngleDeltaDegrees > VIDEO_GAME_DRIVE_ANGLE_TOLERANCE)
         {
             Serial.print("correcting towards right:");
-            leftMixedValue += 0.1 + 0.5 * angleDeltaSpeedMultiplier;
-            rightMixedValue += -0.1 + -0.5 * angleDeltaSpeedMultiplier;
+            leftMixedValue += 0.1 + VIDEO_GAME_DRIVE_ANGLE_CORRECT_FACTOR * angleDeltaSpeedMultiplier;
+            rightMixedValue += -0.1 + -VIDEO_GAME_DRIVE_ANGLE_CORRECT_FACTOR * angleDeltaSpeedMultiplier;
             // too much to the left, turn right
         }
-        else if (_videoGameAngleDeltaDegrees < -3)
+        else if (_videoGameAngleDeltaDegrees < -VIDEO_GAME_DRIVE_ANGLE_TOLERANCE)
         {
             Serial.print("correcting towards left");
-            leftMixedValue += -0.1 + -0.5 * angleDeltaSpeedMultiplier;
-            rightMixedValue += 0.1 + 0.5 * angleDeltaSpeedMultiplier;
+            leftMixedValue += -0.1 + -VIDEO_GAME_DRIVE_ANGLE_CORRECT_FACTOR * angleDeltaSpeedMultiplier;
+            rightMixedValue += 0.1 + VIDEO_GAME_DRIVE_ANGLE_CORRECT_FACTOR * angleDeltaSpeedMultiplier;
             //too much to the right, turn left
         }
         else
@@ -930,7 +1007,7 @@ void InterpretAnalogSticksAsTankDrive()
     }
 
     if (_controllerRightStickY < ANALOG_CONTROLLER_CLAMP_TO_ZERO &&
-        _controllerRightStickY > -ANALOG_CONTROLLER_CLAMP_TO_ZERO)
+            _controllerRightStickY > -ANALOG_CONTROLLER_CLAMP_TO_ZERO)
     {
         _worldRightMotorUnthrottledNormalizedSpeed = 0;
     }

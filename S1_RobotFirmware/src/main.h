@@ -50,7 +50,7 @@
 #define PIN_WEAPON_MOTOR 14
 #define PIN_WEAPON_MOTOR_COPY 13
 #define PIN_VOLTAGE_CHECK 27
-#define UPDATE_STEP_LENGTH_MILLIS 10
+#define UPDATE_STEP_LENGTH_MILLIS 1
 
 // Orientation Sensor
 //VARIABLES I CANT RENAME!??
@@ -60,7 +60,10 @@ sensors_event_t event; //I dont think this can be renamed either
 int _analogPinValue = 0; // Don't want to rename or get rid of
 float _currentXOrientation = 0;
 bool _isUpsideDown = false;
+bool _previousCalibrationWasUnderTwo = true;
 float _currentXOrientationOffset = 0;
+float _previousEventOrientationX = -1;
+int _eventOrientationXDelta = 0;
 bool _useIMU = true;
 uint8_t overallSystem, gyro, accel, _magnetometerCalibrationLevel;
 
@@ -121,7 +124,7 @@ int _driveRightLEDs[5] = {32, 24, 16, 8, 0};
 // ESC Declarations and true values
 
 #define DRIVE_POWER_MAX 100 //Range 0 to 100, 100 being full power
-#define WEAPON_POWER_MAX 100 //Range 0 to 100, 100 being full power
+#define WEAPON_POWER_MAX 66 //Range 0 to 100, 100 being full power
 
 #define CENTER_TRIM_DRIVE_ESC -3.0
 #define CENTER_TRIM_WEAPON_ESC 0.0
@@ -151,19 +154,22 @@ float _targetWeaponMotorNormalizedSpeed = 0;
 float _currentWeaponMotorNormalizedSpeed = 0;
 
 // Drive hypothetical or interpretation
-#define DETHROTTLE_WEAPON_FACTOR 20.0 //last 10
-#define DETHROTTLE_WEAPON_HARD_MINIMUM 0.25 // last 0.5
+#define DETHROTTLE_WEAPON_FACTOR 15 //last 10 // higher = harder throttle. lower = lighter throttle. 0 = none.
+#define DETHROTTLE_WEAPON_HARD_MINIMUM 0.4 // last 0.5 // minimum multiplier
 #define DETHROTTLE_WEAPON_ON_HARD_TURN true
 
-#define SLOW_MULTIPLIER 0.33
+#define SLOW_MULTIPLIER 0.5
 #define TURBO_MULTIPLIER 1
-#define DEFAULT_MULTIPLIER 0.66
+#define DEFAULT_MULTIPLIER 0.999
 
-#define DRIVE_NEUTRAL_CLAMP_TO_ZERO 0.1
+#define VIDEO_GAME_DRIVE_ANGLE_TOLERANCE 1
+#define VIDEO_GAME_DRIVE_ANGLE_CORRECT_FACTOR 0.6 // smaller = less correction, bigger = more correction
+#define DRIVE_NEUTRAL_CLAMP_TO_ZERO 0.025
 #define ANALOG_CONTROLLER_CLAMP_TO_ZERO 2
 #define DRIVE_SPEED_SMOOTHING_FACTOR 0.25 // smaller = slower, bigger = faster
 #define WEAPON_SPEED_SMOOTHING_FACTOR 0.1 // smaller = slower, bigger = faster
-#define DRIVE_PERFECT_FORWARD_CORRECTION_FACTOR 0.8
+#define DRIVE_PERFECT_FORWARD_CORRECTION_FACTOR 0.3 // smaller = less correction, bigger = more correction
+#define GYRO_LIFT_ANGLE_TOLERANCE 5
 
 bool _reverseAllDriveMotors = true; // RPB: This is the case of like if we have a gear
 bool _linearDirectionStabilizationEnabled = false;
