@@ -1289,6 +1289,8 @@ float AttenuateWeaponThrottleBasedOnAngleDelta(float inputTargetWeaponSpeed)
 
     if (_currentlyDoingVideoGameStyleControlInsteadOfDPadOrTank)
     {
+        //TODO: this is where to also add the dethrottle based off the roll angle
+        
         dethrottleMultiplier =
                 1 - abs((float) _videoGameAngleDeltaDegrees / (float) 180 * (float) DETHROTTLE_WEAPON_FACTOR);
 
