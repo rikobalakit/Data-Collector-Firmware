@@ -26,8 +26,8 @@
 
 #define LOG_CONTROLLER_INPUT false
 #define LOG_CONTROLLER_ACCELEROMETER false
-#define LOG_ORIENTATION true
-#define LOG_VOLTAGE false
+#define LOG_ORIENTATION false
+#define LOG_VOLTAGE true
 #define LOG_CONTROLLER_CONNECTED false
 #define EVENT_MODE false
 
@@ -50,7 +50,7 @@
 #define PIN_WEAPON_MOTOR 14
 #define PIN_WEAPON_MOTOR_COPY 13
 #define PIN_VOLTAGE_CHECK 27
-#define UPDATE_STEP_LENGTH_MILLIS 1
+#define UPDATE_STEP_LENGTH_MILLIS 10
 
 // Orientation Sensor
 //VARIABLES I CANT RENAME!??
@@ -193,10 +193,10 @@ ulong _lastControllerAccelerometerChangedTime = 0;
 ulong _controllerTimeoutDeclaredStartedMillis = 0;
 
 // Battery Status
-#define VOLTAGE_CUTOFF_EVERYTHING  3.2 //BS1
-#define VOLTAGE_CUTOFF_WEAPON  3.4 //BS2
-#define VOLTAGE_CUTOFF_HALFWAY  3.7 //BS3
-#define VOLTAGE_CUTOFF_FULL  4.05 //BS4
+#define VOLTAGE_CUTOFF_EVERYTHING  3.3 //BS1
+#define VOLTAGE_CUTOFF_WEAPON  3.5 //BS2
+#define VOLTAGE_CUTOFF_HALFWAY  3.75 //BS3
+#define VOLTAGE_CUTOFF_FULL  4.1 //BS4
 #define VOLTAGE_CUTOFF_OVERLIMIT  4.25 //BS5
 
 #define BATTERY_STAGE_UNDEFINED -1
@@ -212,6 +212,10 @@ ulong _accumulatedTimeSinceBatteryStageSwitched = 0;
 int _voltageResultRawValue = 0;
 float _calculatedVoltageVolts;
 float _calculatedVoltagePerCell = 0;
+int _rawReadings [100];
+int _readingsIndex = 0;
+int _esp32Id = -1; // -1 is default, -2 is error, 1 is actual start
+
 
 void Start();
 

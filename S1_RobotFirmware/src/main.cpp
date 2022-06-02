@@ -137,7 +137,7 @@ void InitializeLEDs()
     delay(10);
     FastLED.addLeds<NEOPIXEL, PIN_NUM_NEOPIXEL_OUTPUT>(leds, TOTAL_LED);
     FastLED.show();
-    
+
     // TODO: add properties for each LED instead of just the index being vaguely referenced
 }
 
@@ -444,22 +444,22 @@ void LogOrientation()
 
     //event.gyro.heading;
     //    event.orientation.x;
-    
+
     Serial.print("\t   X: ");
     Serial.print(_currentXOrientation, 4);
 
     Serial.print("\t   event.gyro.roll: ");
-    Serial.print((float)event.gyro.roll, 4);
+    Serial.print((float) event.gyro.roll, 4);
 
     Serial.print("\t   event.gyro.pitch: ");
-    Serial.print((float)event.gyro.pitch, 4);
+    Serial.print((float) event.gyro.pitch, 4);
 
     Serial.print("\t   event.gyro.heading: ");
-    Serial.print((float)event.gyro.heading, 4);
+    Serial.print((float) event.gyro.heading, 4);
 
     Serial.print("\t   event.orientation.x: ");
-    Serial.print((float)event.orientation.x, 4);
-    
+    Serial.print((float) event.orientation.x, 4);
+
     /*
     Serial.print("\t   XOFF: ");
     Serial.print(_currentXOrientationOffset, 4);
@@ -477,6 +477,70 @@ void LogOrientation()
 
 }
 
+void printMac(const unsigned char *mac) {
+    printf("%02X:%02X:%02X:%02X:%02X:%02X", mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+}
+
+void SetFormulaId()
+{
+    unsigned char thisEspMacAddress[6] = {0};
+    esp_efuse_mac_get_default(thisEspMacAddress);
+
+    // during R&D, this is the "free" one
+    unsigned char formula1MacAddress[] = {0x34, 0x94, 0x54, 0x25, 0x04, 0xBC};
+
+    if (thisEspMacAddress[0] == formula1MacAddress[0]
+        && thisEspMacAddress[1] == formula1MacAddress[1]
+        && thisEspMacAddress[2] == formula1MacAddress[2]
+        && thisEspMacAddress[3] == formula1MacAddress[3]
+        && thisEspMacAddress[4] == formula1MacAddress[4]
+        && thisEspMacAddress[5] == formula1MacAddress[5])
+    {
+        _esp32Id = 1;
+        return;
+    }
+    // during R&D, this is the "installed" one
+    unsigned char formula2MacAddress[] = {0x30, 0xC6, 0xF7, 0x23, 0x97, 0x3C};
+
+    if (thisEspMacAddress[0] == formula2MacAddress[0]
+        && thisEspMacAddress[1] == formula2MacAddress[1]
+        && thisEspMacAddress[2] == formula2MacAddress[2]
+        && thisEspMacAddress[3] == formula2MacAddress[3]
+        && thisEspMacAddress[4] == formula2MacAddress[4]
+        && thisEspMacAddress[5] == formula2MacAddress[5])
+    {
+        _esp32Id = 2;
+        return;
+    }
+    
+    
+    _esp32Id = -2; // error
+}
+
+float CalculateVoltageForUniqueAddress(int rawReading)
+{
+    if(_esp32Id == -1)
+    {
+        SetFormulaId();
+    }
+
+    // use Formula 1
+    
+    if(_esp32Id == 1)
+    {
+        return -4.51879523 + 0.00882277 * (float) rawReading -
+               0.00000081 * (float) (rawReading * rawReading);
+    }
+    
+    if(_esp32Id == 2)
+    {
+        return -4.36430528 + 0.00924324 * (float) rawReading -
+               0.00000092 * (float) (rawReading * rawReading);
+    }
+    
+    
+}
+
 void LogVoltage()
 {
     if (!LOG_VOLTAGE)
@@ -484,14 +548,33 @@ void LogVoltage()
         return;
     }
 
+    _rawReadings[_readingsIndex] = _voltageResultRawValue;
+    _readingsIndex++;
+    if (_readingsIndex >= 100)
+    {
+        _readingsIndex = 0;
+    }
+
+    int readingsTotal = 0;
+    for (int i = 0; i < 100; i++)
+    {
+        readingsTotal += _rawReadings[i];
+    }
+
+    float averageReading = (float) readingsTotal / (float) 100;
+
     Serial.println();
+    Serial.print(averageReading, 4);
+    Serial.print(" rawV avg, ");
     Serial.print(_voltageResultRawValue);
-    Serial.print("rawV, ");
+    Serial.print(" rawV, ");
     Serial.print(_calculatedVoltageVolts);
     Serial.print("v, (");
     Serial.print(_calculatedVoltagePerCell);
-    Serial.print("v per cell)");
-    Serial.println("v");
+    Serial.print("v per cell)   ");
+    Serial.println("");
+
+
 }
 
 #pragma endregion
@@ -507,7 +590,7 @@ void InitializeController()
 
 void CheckAndInitializeOrientationSensor()
 {
-   
+
     if (!bno.begin(bno.OPERATION_MODE_IMUPLUS))
     {
         /* There was a problem detecting the BNO055 ... check your connections */
@@ -520,7 +603,7 @@ void CheckAndInitializeOrientationSensor()
     if (_useIMU)
     {
         bno.setExtCrystalUse(true);
-        
+
     }
 }
 
@@ -540,7 +623,7 @@ void ReadOrientation()
 void ReadVoltage()
 {
     _voltageResultRawValue = analogRead(PIN_VOLTAGE_CHECK);
-    _calculatedVoltageVolts = 0.00353 * (float) _voltageResultRawValue + 3.88894; // this is so wacky, why isn't it linear?
+    _calculatedVoltageVolts = CalculateVoltageForUniqueAddress(_voltageResultRawValue);
     //i hope this stays accurate between different copies/spares
     //only accurate between 12.0v and 16.8v, gets super wacky below that.
     _calculatedVoltagePerCell = _calculatedVoltageVolts / (float) 4.0;
@@ -582,15 +665,15 @@ void ReadControllerInput()
 
 void AttemptToRecalibrateIfSuddenChangeDetected()
 {
-    if(_previousEventOrientationX == -1)
+    if (_previousEventOrientationX == -1)
     {
         _previousEventOrientationX = _currentXOrientation;
     }
 
 
-    _eventOrientationXDelta =  ((int) (_currentXOrientation - _previousEventOrientationX + 180 + 360)) % 360 - 180;
+    _eventOrientationXDelta = ((int) (_currentXOrientation - _previousEventOrientationX + 180 + 360)) % 360 - 180;
 
-    if(abs(_eventOrientationXDelta)  > 45 && _currentXOrientationOffset == 0 && _magnetometerCalibrationLevel > 2)
+    if (abs(_eventOrientationXDelta) > 45 && _currentXOrientationOffset == 0 && _magnetometerCalibrationLevel > 2)
     {
         _currentXOrientationOffset = -_eventOrientationXDelta;
     }
@@ -602,29 +685,30 @@ void InterpretRollForRumble()
 {
     // heading can be between -180 to 180
     //stable heading should be between -180 to -170 and -10 to 10 and 170 to 180.
-    
+
     float rollReadingAbsolute = abs(event.gyro.heading);
-    float differenceFrom90 = abs(90-rollReadingAbsolute);
+    float differenceFrom90 = abs(90 - rollReadingAbsolute);
 
     Serial.print("\t   rollDelta: ");
     Serial.print(differenceFrom90, 4);
 
-    if(differenceFrom90 < (90-GYRO_LIFT_ANGLE_TOLERANCE))
+    if (differenceFrom90 < (90 - GYRO_LIFT_ANGLE_TOLERANCE))
     {
-        float normalizedStrengthOfRollover = ((90-GYRO_LIFT_ANGLE_TOLERANCE)-differenceFrom90)/(90-GYRO_LIFT_ANGLE_TOLERANCE);
+        float normalizedStrengthOfRollover =
+                ((90 - GYRO_LIFT_ANGLE_TOLERANCE) - differenceFrom90) / (90 - GYRO_LIFT_ANGLE_TOLERANCE);
         Serial.print("currently rolling over: ");
         Serial.print(normalizedStrengthOfRollover, 4);
-        if(ps3IsConnected())
+        if (ps3IsConnected())
         {
-            Ps3.setRumble(normalizedStrengthOfRollover*50+50, 500);
+            Ps3.setRumble(normalizedStrengthOfRollover * 50 + 50, 500);
         }
-        
+
 
     }
     else
     {
         // not rolling over
-        if(ps3IsConnected())
+        if (ps3IsConnected())
         {
             Ps3.setRumble(0, 500);
         }
@@ -633,8 +717,8 @@ void InterpretRollForRumble()
 
 void InterpretOrientation()
 {
-  
-    
+
+
     _currentXOrientation = 360 - event.orientation.x;
 
     if (event.orientation.z > 90 || event.orientation.z < -90)
@@ -658,9 +742,9 @@ void InterpretOrientation()
     {
         _currentXOrientation -= 360;
     }
-   
+
     InterpretRollForRumble();
-    
+
 }
 
 void InterpretVoltage()
@@ -671,7 +755,8 @@ void InterpretVoltage()
     {
         possibleNewBatteryStage = BATTERY_STAGE_DEAD;
     }
-    else if (_calculatedVoltagePerCell >= VOLTAGE_CUTOFF_EVERYTHING && _calculatedVoltagePerCell < VOLTAGE_CUTOFF_WEAPON)
+    else if (_calculatedVoltagePerCell >= VOLTAGE_CUTOFF_EVERYTHING &&
+             _calculatedVoltagePerCell < VOLTAGE_CUTOFF_WEAPON)
     {
         possibleNewBatteryStage = BATTERY_STAGE_CUTOFF_WEAPON;
     }
@@ -797,13 +882,13 @@ void InterpretDPadInputToDrive()
             {
                 Serial.print("correcting towards right:");
                 leftMixedValue += 1;
-                rightMixedValue += 1 * (1-DRIVE_PERFECT_FORWARD_CORRECTION_FACTOR);
+                rightMixedValue += 1 * (1 - DRIVE_PERFECT_FORWARD_CORRECTION_FACTOR);
                 // too much to the left, turn right
             }
             else if (angleDelta < -3)
             {
                 Serial.print("correcting towards left");
-                leftMixedValue += 1 * (1-DRIVE_PERFECT_FORWARD_CORRECTION_FACTOR);
+                leftMixedValue += 1 * (1 - DRIVE_PERFECT_FORWARD_CORRECTION_FACTOR);
                 rightMixedValue += 1;
                 //too much to the right, turn left
             }
@@ -845,7 +930,7 @@ void InterpretDPadInputToDrive()
             if (angleDelta > 3)
             {
                 Serial.print("correcting towards right:");
-                leftMixedValue -= 1 * (1-DRIVE_PERFECT_FORWARD_CORRECTION_FACTOR);
+                leftMixedValue -= 1 * (1 - DRIVE_PERFECT_FORWARD_CORRECTION_FACTOR);
                 rightMixedValue -= 1;
                 // too much to the left, turn right
             }
@@ -853,7 +938,7 @@ void InterpretDPadInputToDrive()
             {
                 Serial.print("correcting towards left");
                 leftMixedValue -= 1;
-                rightMixedValue -= 1 * (1-DRIVE_PERFECT_FORWARD_CORRECTION_FACTOR);
+                rightMixedValue -= 1 * (1 - DRIVE_PERFECT_FORWARD_CORRECTION_FACTOR);
                 //too much to the right, turn left
             }
             else
@@ -1007,7 +1092,7 @@ void InterpretAnalogSticksAsTankDrive()
     }
 
     if (_controllerRightStickY < ANALOG_CONTROLLER_CLAMP_TO_ZERO &&
-            _controllerRightStickY > -ANALOG_CONTROLLER_CLAMP_TO_ZERO)
+        _controllerRightStickY > -ANALOG_CONTROLLER_CLAMP_TO_ZERO)
     {
         _worldRightMotorUnthrottledNormalizedSpeed = 0;
     }
@@ -1021,7 +1106,7 @@ void InterpretTriggersForWeaponMotorControl()
 {
     // TODO-RPB: Inversion-sensitive weapon controls requires an inversion smoothing function
     // and careful prep of all motors and ESCs to be in the same direction
-    
+
     if (_controllerL2 < ANALOG_CONTROLLER_CLAMP_TO_ZERO)
     {
         _leftTriggerNormalizedValue = 0;
@@ -1092,7 +1177,7 @@ void InterpretControllerInput()
 void InitializePWMTimers()
 {
     // TODO: I think im doing this wrong...
-    
+
     ESP32PWM::allocateTimer(0);
     ESP32PWM::allocateTimer(1);
     ESP32PWM::allocateTimer(2);
@@ -1290,7 +1375,7 @@ float AttenuateWeaponThrottleBasedOnAngleDelta(float inputTargetWeaponSpeed)
     if (_currentlyDoingVideoGameStyleControlInsteadOfDPadOrTank)
     {
         //TODO: this is where to also add the dethrottle based off the roll angle
-        
+
         dethrottleMultiplier =
                 1 - abs((float) _videoGameAngleDeltaDegrees / (float) 180 * (float) DETHROTTLE_WEAPON_FACTOR);
 
