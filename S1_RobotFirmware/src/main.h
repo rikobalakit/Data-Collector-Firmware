@@ -100,7 +100,6 @@ int _controllerLastGz = 0;
 // LED
 #define TOTAL_LED 64
 #define MAX_BRIGHTNESS 80
-
 #define HUE_BLUE 171
 
 #define SAT_FORWARD 0
@@ -152,18 +151,20 @@ float _weaponMotorUnthrottledNormalizedSpeed = 0;
 float _weaponMotorThrottledNormalizedSpeed = 0;
 float _targetWeaponMotorNormalizedSpeed = 0;
 float _currentWeaponMotorNormalizedSpeed = 0;
+float _currentRollAngle = 0;
 
 // Drive hypothetical or interpretation
-#define DETHROTTLE_WEAPON_FACTOR 15 //last 10 // higher = harder throttle. lower = lighter throttle. 0 = none.
+#define DETHROTTLE_WEAPON_FACTOR 4 //last 10 // higher = harder throttle. lower = lighter throttle. 0 = none.
 #define DETHROTTLE_WEAPON_HARD_MINIMUM 0.4 // last 0.5 // minimum multiplier
 #define DETHROTTLE_WEAPON_ON_HARD_TURN true
+#define DETHROTTLE_ANGLE_MINIMUM 10
 
 #define SLOW_MULTIPLIER 0.5
 #define TURBO_MULTIPLIER 1
 #define DEFAULT_MULTIPLIER 0.999
 
-#define VIDEO_GAME_DRIVE_ANGLE_TOLERANCE 1
-#define VIDEO_GAME_DRIVE_ANGLE_CORRECT_FACTOR 0.6 // smaller = less correction, bigger = more correction
+#define VIDEO_GAME_DRIVE_ANGLE_TOLERANCE 3
+#define VIDEO_GAME_DRIVE_ANGLE_CORRECT_FACTOR 0.5 // smaller = less correction, bigger = more correction
 #define DRIVE_NEUTRAL_CLAMP_TO_ZERO 0.025
 #define ANALOG_CONTROLLER_CLAMP_TO_ZERO 2
 #define DRIVE_SPEED_SMOOTHING_FACTOR 0.25 // smaller = slower, bigger = faster
@@ -187,17 +188,18 @@ ulong _forceShutdownStartedMillis = 0;
 float _forceShutdownProgress = 0;
 bool _forceShutdownTurnedOn = false;
 
-// Controller Disconnection
+// Controller Constants
 #define CONTROLLER_TIMEOUT_THRESHOLD_MILLIS 1000
+#define CONTROLLER_RUMBLE_REFRESH_RATE_MILLIS 25
 ulong _lastControllerAccelerometerChangedTime = 0;
 ulong _controllerTimeoutDeclaredStartedMillis = 0;
 
 // Battery Status
-#define VOLTAGE_CUTOFF_EVERYTHING  3.3 //BS1
-#define VOLTAGE_CUTOFF_WEAPON  3.5 //BS2
-#define VOLTAGE_CUTOFF_HALFWAY  3.75 //BS3
-#define VOLTAGE_CUTOFF_FULL  4.1 //BS4
-#define VOLTAGE_CUTOFF_OVERLIMIT  4.25 //BS5
+#define VOLTAGE_CUTOFF_EVERYTHING  3.3 //BS1 13.2v
+#define VOLTAGE_CUTOFF_WEAPON  3.5 //BS2 14v
+#define VOLTAGE_CUTOFF_HALFWAY  3.75 //BS3 15v
+#define VOLTAGE_CUTOFF_FULL  4.1 //BS4 16.4v
+#define VOLTAGE_CUTOFF_OVERLIMIT  4.25 //BS5 17v
 
 #define BATTERY_STAGE_UNDEFINED -1
 #define BATTERY_STAGE_DEAD 0
@@ -215,7 +217,7 @@ float _calculatedVoltagePerCell = 0;
 int _rawReadings [100];
 int _readingsIndex = 0;
 int _esp32Id = -1; // -1 is default, -2 is error, 1 is actual start
-
+ulong _lastTimeRumbleUpdated = 0;
 
 void Start();
 

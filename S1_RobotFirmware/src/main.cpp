@@ -477,8 +477,9 @@ void LogOrientation()
 
 }
 
-void printMac(const unsigned char *mac) {
-    printf("%02X:%02X:%02X:%02X:%02X:%02X", mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+void printMac(const unsigned char *mac)
+{
+    printf("%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
 
 void SetFormulaId()
@@ -512,33 +513,33 @@ void SetFormulaId()
         _esp32Id = 2;
         return;
     }
-    
-    
+
+
     _esp32Id = -2; // error
 }
 
 float CalculateVoltageForUniqueAddress(int rawReading)
 {
-    if(_esp32Id == -1)
+    if (_esp32Id == -1)
     {
         SetFormulaId();
     }
 
     // use Formula 1
-    
-    if(_esp32Id == 1)
+
+    if (_esp32Id == 1)
     {
         return -4.51879523 + 0.00882277 * (float) rawReading -
                0.00000081 * (float) (rawReading * rawReading);
     }
-    
-    if(_esp32Id == 2)
+
+    if (_esp32Id == 2)
     {
         return -4.36430528 + 0.00924324 * (float) rawReading -
                0.00000092 * (float) (rawReading * rawReading);
     }
-    
-    
+
+    return 0;
 }
 
 void LogVoltage()
@@ -681,6 +682,21 @@ void AttemptToRecalibrateIfSuddenChangeDetected()
     _previousEventOrientationX = _currentXOrientation;
 }
 
+void UpdateRumbleDampened(float intensity, int duration)
+{
+    if (millis() - _lastTimeRumbleUpdated < CONTROLLER_RUMBLE_REFRESH_RATE_MILLIS)
+    {
+        return;
+    }
+
+    _lastTimeRumbleUpdated = millis();
+
+    if (ps3IsConnected())
+    {
+        Ps3.setRumble(intensity, duration);
+    }
+}
+
 void InterpretRollForRumble()
 {
     // heading can be between -180 to 180
@@ -688,6 +704,8 @@ void InterpretRollForRumble()
 
     float rollReadingAbsolute = abs(event.gyro.heading);
     float differenceFrom90 = abs(90 - rollReadingAbsolute);
+
+    _currentRollAngle = differenceFrom90;
 
     Serial.print("\t   rollDelta: ");
     Serial.print(differenceFrom90, 4);
@@ -700,7 +718,7 @@ void InterpretRollForRumble()
         Serial.print(normalizedStrengthOfRollover, 4);
         if (ps3IsConnected())
         {
-            Ps3.setRumble(normalizedStrengthOfRollover * 50 + 50, 500);
+            UpdateRumbleDampened(normalizedStrengthOfRollover * 50 + 50, 500);
         }
 
 
@@ -710,7 +728,7 @@ void InterpretRollForRumble()
         // not rolling over
         if (ps3IsConnected())
         {
-            Ps3.setRumble(0, 500);
+            UpdateRumbleDampened(0, 500);
         }
     }
 }
@@ -1372,21 +1390,30 @@ float AttenuateWeaponThrottleBasedOnAngleDelta(float inputTargetWeaponSpeed)
     float dethrottleMultiplier = 1;
 
 
-    if (_currentlyDoingVideoGameStyleControlInsteadOfDPadOrTank)
+    if (_currentlyDoingVideoGameStyleControlInsteadOfDPadOrTank &&
+        abs(_videoGameAngleDeltaDegrees) > DETHROTTLE_ANGLE_MINIMUM)
     {
-        //TODO: this is where to also add the dethrottle based off the roll angle
-
-        dethrottleMultiplier =
-                1 - abs((float) _videoGameAngleDeltaDegrees / (float) 180 * (float) DETHROTTLE_WEAPON_FACTOR);
-
-        if (dethrottleMultiplier > 1)
-        {
-            dethrottleMultiplier = 1;
-        }
-
-        if (dethrottleMultiplier < DETHROTTLE_WEAPON_HARD_MINIMUM)
+        if (abs(_currentRollAngle) > GYRO_LIFT_ANGLE_TOLERANCE)
         {
             dethrottleMultiplier = DETHROTTLE_WEAPON_HARD_MINIMUM;
+        }
+        else
+        {
+
+            //TODO: this is where to also add the dethrottle based off the roll angle
+
+            dethrottleMultiplier =
+                    1 - abs((float) _videoGameAngleDeltaDegrees / (float) 180 * (float) DETHROTTLE_WEAPON_FACTOR);
+
+            if (dethrottleMultiplier > 1)
+            {
+                dethrottleMultiplier = 1;
+            }
+
+            if (dethrottleMultiplier < DETHROTTLE_WEAPON_HARD_MINIMUM)
+            {
+                dethrottleMultiplier = DETHROTTLE_WEAPON_HARD_MINIMUM;
+            }
         }
     }
     else
