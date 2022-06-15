@@ -1,16 +1,29 @@
 ﻿//
 // Created by rico on 5/28/2022.
 //
-#include <Arduino.h>
-#include "../lib/FastLED-3.4.0/src/FastLED.h"
-#include "../lib/ESP32Servo-0.10.0/src/ESP32Servo.h"
-#include "../lib/ArduinoJson-v6.19.1.h"
-#include "../lib/PS3_Controller_Host/src/Ps3Controller.h"
 
+/* USE THESE IN FUTURE, SPECIFY IN PLATFORMIO.INI
+ * |-- <FastLED> 3.5.0
+|-- <ESP32Servo> 0.11.0
+|-- <PS3 Controller Host> 1.1.0
+|-- <Adafruit BNO055> 1.5.3
+|   |-- <Adafruit BusIO> 1.11.6
+|   |   |-- <Wire> 1.0.1
+|   |   |-- <SPI> 1.0
+|   |-- <Wire> 1.0.1
+|   |-- <Adafruit Unified Sensor> 1.1.5
+|-- <Wire> 1.0.1
+|-- <SPI> 1.0
+
+ */
+
+#include <Arduino.h>
+#include <FastLED.h>
+#include <ESP32Servo.h>
+#include <Ps3Controller.h>
+#include <Adafruit_BNO055.h>
 #include <Wire.h>
-#include "../lib/Adafruit_Unified_Sensor/Adafruit_Sensor.h"
-#include "../lib/Adafruit_BNO055/Adafruit_BNO055.h"
-#include "../lib/Adafruit_BNO055/utility/imumaths.h"
+#include <SPI.h>
 
 #ifndef S1_ROBOTFIRMWARE_MAIN_H
 #define S1_ROBOTFIRMWARE_MAIN_H
